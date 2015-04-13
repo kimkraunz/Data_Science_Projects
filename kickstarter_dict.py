@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Mar 28 06:14:05 2015
-
-@author: jkraunz
-"""
-
 import sys
 reload(sys)
 sys.setdefaultencoding('UTF8')
@@ -87,12 +80,6 @@ def find_perfect_corr(df):
 df.main_category = df.main_category.str.lower()
 df.sub_category = df.sub_category.str.lower()
 
-
-#sub_cat_dict = {'art': ['conceptual art', 'digital art', 'illustration', 'installations', 'mixed media', 'painting', 'performance art', 'public art', 'sculpture', 'textiles', 'video art'], 'comics': ['anthologies', 'comic books', 'events', 'graphic novels', 'webcomics'], 'crafts': ['candles', 'crochet', 'diy', 'embroidery', 'glass', 'knitting', 'letterpress', 'pottery', 'printing', 'quilts', 'stationery', 'taxidermy', 'weaving', 'woodworking'], 'dance': ['performances', 'residencies', 'spaces', 'workshops'], 'design': ['architecture', 'civic design', 'graphic design', 'interactive design', 'product design', 'typography'], 'fashion': ['accessories', 'apparel', 'childrenswear', 'couture', 'footwear', 'jewelry', 'pet fashion', 'ready-to-wear'], 'film & video': ['action', 'animation', 'comedy', 'documentary', 'drama', 'experimental', 'family', 'fantasy', 'festivals', 'horror', 'movie theaters', 'music videos', 'narrative film', 'romance', 'science fiction', 'shorts', 'television', 'thrillers', 'webseries'], 'food':['bacon', 'community gardens', 'cookbooks', 'drinks', 'events', 'farmers markets', 'farms', 'food trucks', 'restaurants', 'small batch', 'spaces', 'vegan'], 'games': ['gaming hardware', 'live games', 'mobile games', 'playing cards', 'puzzles', 'tabletop games', 'video games'], "journalism": ['audio', 'photo', 'prints', 'video', 'web'], 'music': ['blues', 'chiptune', 'classical music', 'country & folk', 'electronic music', 'faith', 'hip-hop', 'indie rock', 'jazz', 'kids', 'latin', 'metal', 'pop', 'punk', 'r&b', 'rock', 'world music'], 'animals': ['fine art', 'nature', 'people', 'photobooks', 'places'], 'technology': ['3d printing', 'apps','camera equipment', 'diy electronics', 'fabrication tools', 'flight', 'gadgets', 'hardware', 'makerspaces', 'robots','software','sound', 'space exploration', 'wearables', 'web'], 'theater': ['experimental', 'festivals', 'immersive', 'musical', 'plays', 'spaces']}
-#
-#for (main_cat, sub_cat) in sub_cat_dict:
-#    if df.main_category in sub_cat:
-#        df.sub_category = df.main_category
 
 art = ('conceptual_art', 'digital_art', 'illustration', 'installations', 'mixed_media', 'painting', 'performance_art', 'public_art', 'sculpture', 'textiles', 'video_art', 'ceramics')
 
@@ -361,24 +348,57 @@ frame_sum_funded = frame_sum_funded[['goal_USD', 'pledged_USD']]
 
 # Text analysis
 
-'''http://engineroom.trackmaven.com/blog/monthly-challenge-natural-language-processing/'''
+df.blurb = df.blurb.astype('str')
+
 
 def polarity(text):
     return TextBlob(unicode(text, errors='ignore')).sentiment.polarity
 
+def subjectivity(text):
+    return TextBlob(unicode(text, errors='ignore')).sentiment.subjectivity
 
-df.blurb = df.blurb.astype('str')
 
 df['polarity'] = map(polarity, df.blurb)
-
-print df.polarity.describe()
-
-#df.blurb.apply(lambda s: TextBlob(unicode(s, errors='ignore'))
+df['subjectivity'] = map(subjectivity, df.blurb) 
 
 
 #####################  Exploratory graphs  ###############################
 
-''' bullet chart: http://bl.ocks.org/mbostock/4061961'''
+# Polarity and subjectivity graph
+
+
+plt.figure(figsize=(9, 12)) 
+plt.subplots_adjust(hspace=.4)
+plt.subplot(211)
+plt.title('Polarity', fontsize = 15)
+plt.hist(df.polarity, bins=30, histtype='step', color='b', label='Polarity')
+plt.text(-.97, -13000, 'Negative', rotation = 'vertical', verticalalignment='bottom', horizontalalignment='right', fontsize=12)
+plt.text(1.03, -12000, 'Positive', rotation = 'vertical', verticalalignment='bottom', horizontalalignment='right', fontsize=12)
+plt.ylabel("Frequency", fontsize = 12)
+plt.xlabel("Scale", fontsize = 12)
+
+plt.figure(figsize=(9, 12)) 
+plt.subplot(211)
+plt.title('Subjectivity', fontsize = 15)
+plt.hist(df.subjectivity, bins=30, histtype='step', color='r', label='Subjectivity')
+plt.text(.03, -11000, 'Objective', rotation = 'vertical', verticalalignment='bottom', horizontalalignment='right', fontsize=12)
+plt.text(1.02, -11500, 'Subjective', rotation = 'vertical', verticalalignment='bottom', horizontalalignment='right', fontsize=12)
+
+plt.xlabel("Scale", fontsize = 12)
+plt.ylabel("Frequency", fontsize = 12)
+plt.show()
+
+# Backer_counts
+
+plt.figure(figsize=(6, 4)) 
+
+plt.title('Project backers', fontsize = 15)
+df[df.funded ==1].backers_count.hist(bins=100, range = (0, 200), label = 'funded')
+df[df.funded ==0].backers_count.hist(bins=100, range = (0, 200), label = 'not funded')
+plt.ylim(0,2000)
+plt.xlabel("Number of project backers (limited to <200)", fontsize = 12)
+plt.ylabel("Frequency", fontsize = 12)
+plt.legend()
 
 # Funded and asked line graph over time
 frame = df.set_index(df.deadline)
@@ -389,32 +409,23 @@ frame['ave_prop_funded'] = 100 * frame.pledged_USD / frame.goal_USD
 frame_sum['perc_funded_q'] = 100 * frame_sum_funded.pledged_USD / frame_sum.pledged_USD
 
 fig, ax1 = plt.subplots()
-frame.goal_USD.plot(ax=ax1, color = 'b', linewidth = 3, label = 'goal')
-frame.pledged_USD.plot(ax=ax1, color = 'r', linewidth = 3, label = 'funded')
+frame.goal_USD.plot(ax=ax1, linewidth = 3, label = 'goal')
+frame.pledged_USD.plot(ax=ax1, linewidth = 3, label = 'pledged')
 ax1.set_xlabel('Year (by quarter)', fontsize = 12)
 ax1.set_ylabel('Average project in USD', fontsize = 12)
 
-plt.title('Average goal and funding per Kickstarter project', fontsize=16)
+plt.title('Average goal and pledges per Kickstarter project', fontsize=16)
 ax1.title.set_position((.5,1.08))
 
 
 ax2 = ax1.twinx()
-frame.ave_prop_funded.plot(ax=ax2, color = 'g', linestyle = '--', label = '% proportion funded', fontsize = 12)
+frame.ave_prop_funded.plot(ax=ax2, color = 'g', linestyle = '--', label = '% proportion pledged', fontsize = 12)
 frame_sum.perc_funded_q.plot(ax=ax2, color = 'black', linestyle = '--', label = '% of projects funded', fontsize = 12)
-ax2.set_ylabel('% funded')
+ax2.set_ylabel('%')
 ax1.legend(bbox_to_anchor=(1.12, .95), loc=2, borderaxespad=0.)
 ax2.legend(bbox_to_anchor=(1.12, .6), loc=3, borderaxespad=0.)
 
 plt.show()
-
-
-# Funded and asked scatter
-
-#plt = frame.plot(x = 'goal_USD', y = 'pledged_USD', kind = 'scatter')
-#
-#for i, txt in enumerate(frame.index):
-#    plt.annotate(txt, (frame.goal_USD[i], frame.pledged_USD[i]))
-#plt.show()
 
 # Sum of projects by quarter
 frame_sum = df.set_index(df.deadline)
@@ -431,16 +442,16 @@ frame_sum['ave_sum_pct_funded'] = 100 * frame.pledged_USD / frame.goal_USD
 
 fig, ax1 = plt.subplots()
 
-frame_sum.log_goal.plot(ax=ax1, color = 'b', linewidth = 3, label = 'goal')
-frame_sum.log_pledged.plot(ax=ax1, color = 'r', linewidth = 3, label = ' funded')
+frame_sum.log_goal.plot(ax=ax1, linewidth = 3, label = 'goal')
+frame_sum.log_pledged.plot(ax=ax1, linewidth = 3, label = 'pledged')
 ax1.set_xlabel('Year (by quarter)', fontsize = 12)
 ax1.set_ylabel('Log (Total sum of projects in USD)', fontsize = 12)
-plt.title('Sum of Kickstarter goals and funding in USD', fontsize=16)
+plt.title('Sum of Kickstarter goals and pledges in USD', fontsize=16)
 ax1.title.set_position((.5,1.08))
 
 
 ax2 = ax1.twinx()
-frame_count.main_category.plot(ax=ax2, color = 'g', linewidth = 1, label = '# of projects')
+frame_count.main_category.plot(ax=ax2, linewidth = 1, label = '# of projects')
 ax2.set_ylabel('Number of projects', fontsize = 12)
 ax1.legend(bbox_to_anchor=(1.2, .95), loc=2, borderaxespad=0.)
 ax2.legend(bbox_to_anchor=(1.2, .6), loc=3, borderaxespad=0.)
@@ -469,23 +480,27 @@ plt.show()
 pandas.set_option('display.max_rows', 350)
 cat_group = df[['deadline', 'main_category', 'goal_USD', 'pledged_USD']].set_index('deadline').groupby('main_category').resample('Q', how='sum')
 
-cat_group.reset_index(inplace=True) 
+cat_group.reset_index(inplace=True)
 cat_group= cat_group[(cat_group.main_category != 'unknown') & (cat_group.deadline <'1/1/2015')]
 
-cat_group.groupby('main_category').pledged_USD.sum()
-cat_group.groupby('main_category').goal_USD.sum()
 
-''' need to figure out better way to graph this'''
-#fig, ax1 = plt.subplots()
-#for cat in cat_group.main_category:
-#    cat_group.goal_USD.plot(ax=ax1, linewidth = 3)
-#ax1.set_xlabel('Year (by quarter)')
-#ax1.set_ylabel('Sum of projects in USD')
-#plt.title('Kickstarter projects (sum) by category')
+groups = cat_group.groupby('main_category')
 
+# Plot
 
+plt.figure(figsize=(16, 12)) 
 
+plt.rcParams.update(pandas.tools.plotting.mpl_stylesheet)
+pandas.options.display.mpl_style = False
+colors = pandas.tools.plotting._get_standard_colors(len(groups), color_type='random')
 
+fig, ax1 = plt.subplots()
+for name, group in groups:
+    ax1.plot(group.deadline, group.pledged_USD, linestyle='-', linewidth = 2, label=name)
+ax1.legend(bbox_to_anchor=(1.12, 1), loc=2, borderaxespad=0.)
+plt.title('Sum of Kickstarter pledges in USD by main category', fontsize=16, y = 1.08)
+ax1.set_ylabel('USD', fontsize = 12)
+plt.show()
 
 
 # Funded by currency
@@ -502,11 +517,6 @@ N=9
 ind = np.arange(N)  # the x locations for the groups
 width = 0.35       # the width of the bars
 
-''' Want to figure out std bars'''
-#pledged_month_std = 
-#ask_month_std = by_month.goal.stdev()
-#pledge_month_std = by_month.pledged.stdev()
-
 fig, ax = plt.subplots()
 pledged = ax.bar(ind, by_currency.pledged_USD, width, color='r')
 ask = ax.bar(ind+width, by_currency.goal_USD, width, color='b')
@@ -519,20 +529,20 @@ ax.legend( (pledged[0], ask[0]), ('Funded', 'Asked') )
 
 
 
-
 # Set up explanatory and response features
-expl_df = df[(df.deadline > '2009-6-30') & (df.deadline < '2015-01-01')]
-expl_df = expl_df.drop(expl_df.index[[0,10]])
+df = df[(df.deadline > '2009-6-30') & (df.deadline < '2015-01-01')]
+df = df.drop(df.index[[0,10]])
 
-explanatory_features = [col for col in expl_df.columns if col in ['main_category', 'sub_category', 'backers_count', 'currency', 'goal_USD', 'pct_funded_prev_q']]
+explanatory_features = [col for col in df.columns if col in ['main_category', 'sub_category', 'backers_count', 'currency', 'goal_USD', 'pct_funded_prev_q', 'polarity', 'subjectivity']]
 
-explanatory_df = expl_df[explanatory_features]
+explanatory_df = df[explanatory_features]
+
 
 explanatory_df.dropna(how = 'all', inplace = True)
 
 explanatory_col_names = explanatory_df.columns
 
-response_series = expl_df.funded
+response_series = df.funded
 
 response_series.dropna(how = 'all', inplace = True)
 
@@ -589,20 +599,6 @@ find_zero_var(explanatory_df)
 # No features had zero variance
 
 # 8. Remove perfectly correlated features
-
-# Color chart to look at correlation (only first 25)
-toChart = explanatory_df.ix[:, 0:25].corr()
-toChart.head()
-
-import matplotlib.pyplot as plt
-import numpy
-plt.pcolor(toChart)
-plt.yticks(numpy.arange(0.5, len(toChart.index), 1), toChart.index)
-plt.xticks(numpy.arange(0.5, len(toChart.columns), 1), toChart.columns, rotation = -90)
-plt.colorbar()
-plt.show()
-
-# Function to look at all correlation
    
 find_perfect_corr(explanatory_df)
 
@@ -615,7 +611,3 @@ from sklearn import preprocessing
 scaler = preprocessing.StandardScaler()
 scaler.fit(explanatory_df)
 explanatory_df = pandas.DataFrame(scaler.transform(explanatory_df), columns = explanatory_df.columns)
-
-
-
-
