@@ -1,0 +1,1047 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 17 18:48:28 2015
+
+@author: jkraunz
+"""
+
+import pandas
+import numpy
+import matplotlib.pyplot as plt
+from pylab import rcParams
+from sklearn import preprocessing
+from sklearn.svm import SVC
+from sklearn.cross_validation import StratifiedKFold, cross_val_score
+from sklearn.feature_selection import RFECV
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+
+# Functions
+
+def find_zero_var(df):
+   """finds columns in the dataframe with zero variance -- ie those
+       with the same value in every observation.
+   """   
+   toKeep = []
+   toDelete = []
+   for col in df:
+       if len(df[col].value_counts()) > 1:
+           toKeep.append(col)
+       else:
+           toDelete.append(col)
+       ##
+   return {'toKeep':toKeep, 'toDelete':toDelete} 
+
+def find_perfect_corr(df):
+   """finds columns that are eother positively or negatively perfectly correlated (with correlations of +1 or -1), and creates a dict 
+       that includes which columns to drop so that each remaining column
+       is independent
+   """  
+   corrMatrix = df.corr()
+   corrMatrix.loc[:,:] =  numpy.tril(corrMatrix.values, k = -1)
+   already_in = set()
+   result = []
+   for col in corrMatrix:
+       perfect_corr = corrMatrix[col][abs(numpy.round(corrMatrix[col],10)) >= .9].index.tolist()
+       if perfect_corr and col not in already_in:
+           already_in.update(set(perfect_corr))
+           perfect_corr.append(col)
+           result.append(perfect_corr)
+   toRemove = []
+   for item in result:
+       toRemove.append(item[1:(len(item)+1)])
+   toRemove = sum(toRemove, [])
+   return {'corrGroupings':result, 'toRemove':toRemove}  
+   
+# Data
+
+df = pandas.read_csv('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/tree_train.csv')
+
+pandas.set_option('display.max_columns', None)
+df.head()
+
+
+# 8. Exploratory graphs
+
+rcParams['figure.figsize'] = 5, 5
+
+plt.hist(df.Elevation, bins=20, color='#cccccc')
+plt.xlabel("Elevation")
+plt.ylabel("Frequency")
+plt.ylim(0, 1500)
+plt.show()
+
+plt.hist(df.Aspect, bins=20, color='#cccccc')
+plt.xlabel("Aspect")
+plt.ylabel("Frequency")
+plt.ylim(0, 1500)
+plt.show()
+
+# Aspect is in degrees so it should be converted to a sin/cos function
+
+
+plt.hist(df.Slope, bins=20, color='#cccccc')
+plt.xlabel("Slope")
+plt.ylabel("Frequency")
+plt.ylim(0, 2200)
+plt.show()
+
+plt.hist(df.Horizontal_Distance_To_Hydrology, bins=20, color='#cccccc')
+plt.xlabel("Horizontal_Distance_To_Hydrology")
+plt.ylabel("Frequency")
+plt.ylim(0, 4500)
+plt.show()
+
+# log transfrom Horizontal_Distance_To_Hydrology
+
+plt.hist(df.Vertical_Distance_To_Hydrology, bins=20, color='#cccccc')
+plt.xlabel("Vertical_Distance_To_Hydrology")
+plt.ylabel("Frequency")
+plt.ylim(0, 7000)
+plt.show()
+
+# log transform Vertical_Distance_To_Hydrology?
+
+plt.hist(df.Horizontal_Distance_To_Roadways, bins=20, color='#cccccc')
+plt.xlabel("Horizontal_Distance_To_Roadways")
+plt.ylabel("Frequency")
+plt.ylim(0, 2500)
+plt.show()
+
+# Log transform Horizontal_Distance_To_Roadways?
+
+plt.hist(df.Horizontal_Distance_To_Fire_Points, bins=20, color='#cccccc')
+plt.xlabel("Horizontal_Distance_To_Fire_Points")
+plt.ylabel("Frequency")
+plt.ylim(0, 3000)
+plt.show()
+
+# Log transform Horizontal_Distance_To_Fire_Points?
+
+plt.hist(df.Hillshade_9am, bins=20, color='#cccccc')
+plt.xlabel("Hillshade_9am")
+plt.ylabel("Frequency")
+plt.ylim(0, 3200)
+plt.show()
+
+plt.hist(df.Log_Hillshade_9am, bins=20, color='#cccccc')
+plt.xlabel("Hillshade_9am")
+plt.ylabel("Frequency")
+plt.ylim(0, 3200)
+plt.show()
+
+# Log transform Hillshade_9am?
+
+plt.hist(df.Hillshade_Noon, bins=20, color='#cccccc')
+plt.xlabel("Hillshade_Noon")
+plt.ylabel("Frequency")
+plt.ylim(0, 2600)
+plt.show()
+
+# Log transform Hillshade_Noon
+
+plt.hist(df.Hillshade_3pm, bins=20, color='#cccccc')
+plt.xlabel("Hillshade_3pm")
+plt.ylabel("Frequency")
+plt.ylim(0, 2000)
+plt.show()
+
+
+plt.scatter(df.Cover_Type, df.Elevation, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Elevation")
+plt.ylim(0, 5000)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Aspect, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Aspect")
+plt.ylim(0, 360)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Slope, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Slope")
+plt.ylim(0, 50)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Horizontal_Distance_To_Hydrology, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Horizontal Distance to Hydrology")
+plt.ylim(0, 1500)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Vertical_Distance_To_Hydrology, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Vertical Distance to Hydrology")
+plt.ylim(-200, 600)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Horizontal_Distance_To_Roadways, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Horizontal Distance to Roadways")
+plt.ylim(0, 8000)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Horizontal_Distance_To_Fire_Points, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Horizontal Distance to Fire Points")
+plt.ylim(0, 8000)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Hillshade_9am, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Hillshade at 9 am")
+plt.ylim(0, 280)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Hillshade_Noon, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Hillshade at Noon")
+plt.ylim(0, 280)
+plt.show()
+
+plt.scatter(df.Cover_Type, df.Hillshade_3pm, lw=0, alpha=.08, color='g')
+plt.xlabel("Cover Type")
+plt.ylabel("Hillshade at 3 pm")
+plt.ylim(0, 280)
+plt.show()
+
+def plotc(var1,var2):
+
+    fig = plt.figure(figsize=(8,5))
+    sel = numpy.array(list(df.Cover_Type.values))
+
+    plt.scatter(var1, var2, c=sel, s=100)
+    plt.xlabel(var1.name)
+    plt.ylabel(var2.name)
+    
+plotc(df.Elevation, df.Vertical_Distance_To_Hydrology)
+
+plotc(df.Elevation-df.Vertical_Distance_To_Hydrology, df.Vertical_Distance_To_Hydrology)
+
+plotc(df.Elevation, df.Horizontal_Distance_To_Hydrology)
+
+plotc(df.Elevation - .15* df.Horizontal_Distance_To_Hydrology, df.Horizontal_Distance_To_Hydrology)
+
+plotc(df.Hillshade_Noon, df.Hillshade_3pm)
+
+
+plotc(df.Hillshade_Noon, df.Hillshade_9am)
+
+plotc(df.Hillshade_9am, df.Hillshade_3pm)
+
+plotc(df.Hillshade_3pm, df.Sin_Aspect)
+
+plotc(df.Hillshade_Noon, df.Sin_Aspect)
+
+plotc(df.Hillshade_9am, df.Sin_Aspect)
+
+
+# Data manipulation
+
+# convert Aspect from compass degree to sin wave
+df["Sin_Aspect"] = numpy.sin(df.Aspect)
+df.drop(['Id', 'Aspect'],  1, inplace = True)
+
+df.sqr_Hillshade_3pm = (df.Hillshade_3pm)**2
+df.sqr_Hillshade_Noon = (df.Hillshade_Noon)**2
+df.sqr_Hillshade_9am = (df.Hillshade_9am)**2
+
+df['diff_Hillshade'] =  df.Hillshade_3pm - df.Hillshade_9am
+
+df['EVDtH'] = df.Elevation-df.Vertical_Distance_To_Hydrology
+
+df['EHDtH'] = df.Elevation-df.Horizontal_Distance_To_Hydrology*0.15
+
+df['Distanse_to_Hydrology'] = (df['Horizontal_Distance_To_Hydrology']**2 +df['Vertical_Distance_To_Hydrology']**2)**0.5
+
+df['Hydro_Fire_1'] = df['Horizontal_Distance_To_Hydrology']+ df['Horizontal_Distance_To_Fire_Points']
+
+df['Hydro_Fire_2'] = abs(df['Horizontal_Distance_To_Hydrology']-df['Horizontal_Distance_To_Fire_Points'])
+
+df['Hydro_Road_1'] = abs(df['Horizontal_Distance_To_Hydrology']+ df['Horizontal_Distance_To_Roadways'])
+
+df['Hydro_Road_2'] = abs(df['Horizontal_Distance_To_Hydrology']-df['Horizontal_Distance_To_Roadways'])
+
+df['Fire_Road_1'] = abs(df['Horizontal_Distance_To_Fire_Points']+ df['Horizontal_Distance_To_Roadways'])
+
+df['Fire_Road_2'] = abs(df['Horizontal_Distance_To_Fire_Points']-df['Horizontal_Distance_To_Roadways'])
+
+
+df.head()
+
+# 1. Separate into explantory features and response variable
+explanatory_features = [col for col in df.columns if col not in ['Cover_Type']]
+explanatory_df = df[explanatory_features]
+
+explanatory_df.dropna(how = 'all', inplace = True)
+
+explanatory_colnames = explanatory_df.columns
+
+response_series = df.Cover_Type
+response_series.dropna(how = 'all', inplace = True)
+
+response_series.index[~response_series.index.isin(explanatory_df.index)]
+
+# did not need to split into numerical and string features since all are numerical
+
+# 3. Check for NaNs
+
+explanatory_df.describe()
+response_series.describe()
+
+# Hillshade index of 0 for some
+def median(var):
+    med = numpy.median(var[var > 0])
+# Assign the median to the zero elements 
+    var[var == 0] = med
+    
+median(df.Hillshade_3pm)
+median(df.Hillshade_9am)
+
+df.Hillshade_9am.describe()
+df.Hillshade_3pm.describe()
+
+# 4. Check for features with no variation
+   
+find_zero_var(explanatory_df)
+
+# Soil_Type7 and Soil_Type15 have zero variance.
+
+# Checking value_counts to confirm
+
+explanatory_df.Soil_Type7.value_counts(normalize = False)
+explanatory_df.Soil_Type15.value_counts(normalize = False)
+
+explanatory_df.drop(["Soil_Type7", "Soil_Type15"], 1, inplace = True)
+
+explanatory_df.columns
+
+# 5.  Transform variables
+
+# No categorical data
+
+# 6. Check features for perfect correlation
+
+# Will print out heat chart
+
+toChart = explanatory_df.ix[:, :].corr()
+toChart.head()
+
+rcParams['figure.figsize'] = 12, 12
+
+plt.pcolor(toChart)
+plt.yticks(numpy.arange(0.5, len(toChart.index), 1), toChart.index)
+plt.xticks(numpy.arange(0.5, len(toChart.columns), 1), toChart.columns, rotation = -90)
+plt.colorbar()
+plt.show()
+
+# Will use function
+
+find_perfect_corr(explanatory_df)
+
+explanatory_df.drop(['EHDtH',
+  'Elevation',
+  'Horizontal_Distance_To_Hydrology',
+  'Hydro_Road_2',
+  'Horizontal_Distance_To_Roadways',
+  'Hillshade_9am',
+  'Hillshade_3pm',
+  'Hydro_Fire_2',
+  'Horizontal_Distance_To_Fire_Points']
+, 1, inplace = True)
+
+# changed correlation to >= .9 since having problems running models.
+
+
+# 7. Descriptive statistics
+
+explanatory_df.describe()
+
+
+# Should I look at range of illumination?
+
+# Converting Soil Type and Wilderness areas back to categorical for easier descriptive statistics
+
+
+# 1. Scale
+
+
+
+scaler = preprocessing.StandardScaler()
+scaler.fit(explanatory_df)
+explanatory_df = pandas.DataFrame(scaler.transform(explanatory_df), columns = explanatory_df.columns)
+
+explanatory_df.describe()
+
+
+############################## Model Selection ####################################
+
+# http://scikit-learn.org/stable/modules/multiclass.html
+
+log_reg = LogisticRegression()
+
+accuracy_scores_lr = cross_val_score(log_reg, explanatory_df, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+print "The multinomial logistic regression 10 fold accuracy is: %f " % accuracy_scores_lr.mean()
+# The multinomial logistic regression 10 fold accuracy is: 0.632275 
+
+ 
+
+#http://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
+
+#Multinomial logistic regression (OVA)
+
+# K Nearest Neighbor
+
+
+
+# Naive Bayes
+naive_bayes_classifier = MultinomialNB()
+accuracy_scores_nb = cross_val_score(naive_bayes_classifier, explanatory_df, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+print "The 10 fold accuracy is: %f " % accuracy_scores_nb.mean()
+
+# Since negative numbers from scaling there's an error
+
+# Decision Trees
+from sklearn import tree
+
+decision_tree = tree.DecisionTreeClassifier(random_state=1)
+accuracy_scores_dt = cross_val_score(decision_tree, explanatory_df, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+print "The decision tree 10 fold accuracy is: %f " % accuracy_scores_dt.mean()
+# The decision tree 10 fold accuracy is: 0.723214 
+
+ 
+
+
+# Random Forests
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
+from sklearn import tree
+
+rf = RandomForestClassifier(n_estimators = 500)
+
+accuracy_scores_rf = cross_val_score(rf, explanatory_df, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+print "The random forest 10 fold accuracy is: %f " % accuracy_scores_rf.mean()
+# The random forest 10 fold accuracy is: 0.799735 
+
+
+# Boosting Trees?
+boosting_tree = GradientBoostingClassifier()
+
+accuracy_scores_gbm = cross_val_score(boosting_tree, explanatory_df, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+print "The Boosting Tree 10 fold accuracy is: %f " % accuracy_scores_gbm.mean()
+# The Boosting Tree 10 fold accuracy is: 0.731614 
+
+
+
+
+# Neural Networks
+from sklearn.neural_network import BernoulliRBM
+from sklearn.pipeline import Pipeline
+from sklearn import linear_model
+
+logistic_classifier = linear_model.LogisticRegression()
+neural_net = BernoulliRBM(random_state=0, verbose=True)
+
+neural_classifier = Pipeline(steps=[('neural_net', neural_net), ('logistic_classifier', logistic_classifier)])
+
+accuracy_scores_nn = cross_val_score(neural_classifier, explanatory_df, response_series, cv=10, scoring = 'accuracy')
+
+print "The neural network 10 fold accuracy is: %f " % accuracy_scores_nn.mean()
+# The neural network 10 fold accuracy is: 0.285251 
+
+
+
+
+# SVM
+#SVM using SVC and NuSVC (OVO) and LinearSVC (OVA)
+from sklearn.svm import SVC
+from sklearn.cross_validation import cross_val_score
+
+svm = SVC(kernel='linear')
+
+accuracy_scores_svm = cross_val_score(svm, explanatory_df, response_series, cv=10, scoring = 'accuracy', n_jobs= -1)
+print "The support vector machine 10 fold accuracy is: %f " % accuracy_scores_svm.mean()
+# The support vector machine 10 fold accuracy is: 0.661045 
+
+
+
+# Extra Trees
+xtra_trees = ExtraTreesClassifier()
+accuracy_scores_xt = cross_val_score(xtra_trees, explanatory_df, response_series, cv=10, scoring = 'accuracy', n_jobs= -1)
+print "The extra tree 10 fold accuracy is: %f " % accuracy_scores_xt.mean()
+# The extra tree 10 fold accuracy is: 0.767923 
+
+
+
+################################# RFE ############################################
+
+
+####  Random Forests
+
+class ForestClassifierWithCoef(RandomForestClassifier):
+   def fit(self, *args, **kwargs):
+       super(RandomForestClassifier, self).fit(*args, **kwargs)
+       self.coef_ = self.feature_importances_
+
+# these are the default settings for the tree based classifier
+random_forest = ForestClassifierWithCoef(n_estimators=500)
+
+rfecv_rf = RFECV(random_forest, step=1, cv=10,
+              scoring='accuracy', verbose = 1)
+rfecv_rf.fit(explanatory_df, response_series)
+
+print "Optimal number of features :{0} of {1} considered".format(rfecv_rf.n_features_, len(explanatory_df.columns))
+# Optimal number of features :37 of 53 considered
+
+
+
+
+
+
+rfecv_rf.n_features_
+
+
+print rfecv_rf.grid_scores_
+#[ 0.5515873   0.60892857  0.66111111  0.71951058  0.73809524  0.76150794
+#  0.76104497  0.78002646  0.78551587  0.78915344  0.78617725  0.7901455
+#  0.78723545  0.7896164   0.78902116  0.79133598  0.79166667  0.79358466
+#  0.79503968  0.79543651  0.79404762  0.79431217  0.79411376  0.79325397
+#  0.79503968  0.79603175  0.7978836   0.79801587  0.79794974  0.79649471
+#  0.79801587  0.79907407  0.79821429  0.79927249  0.79914021  0.79953704
+#  0.80152116  0.8005291   0.79900794  0.79933862  0.79953704  0.80125661
+#  0.79887566  0.7989418   0.79794974  0.79966931  0.79708995  0.79966931
+#  0.79887566  0.79880952  0.80019841  0.79887566  0.79940476]
+
+
+
+
+features_used_rf = explanatory_df.columns[rfecv_rf.get_support()]
+print features_used_rf
+#Index([u'Slope', u'Vertical_Distance_To_Hydrology', u'Hillshade_Noon', u'Wilderness_Area1', u'Wilderness_Area2', u'Wilderness_Area3', u'Wilderness_Area4', u'Soil_Type2', u'Soil_Type3', u'Soil_Type4', u'Soil_Type6', u'Soil_Type10', u'Soil_Type11', u'Soil_Type12', u'Soil_Type13', u'Soil_Type17', u'Soil_Type20', u'Soil_Type22', u'Soil_Type23', u'Soil_Type24', u'Soil_Type29', u'Soil_Type30', u'Soil_Type31', u'Soil_Type32', u'Soil_Type33', u'Soil_Type35', u'Soil_Type38', u'Soil_Type39', u'Soil_Type40', u'Sin_Aspect', u'diff_Hillshade', u'EVDtH', u'Distanse_to_Hydrology', u'Hydro_Fire_1', u'Hydro_Road_1', u'Fire_Road_1', u'Fire_Road_2'], dtype='object')
+
+
+
+
+
+rfecv_rf.score(explanatory_df, response_series)
+#  0.99609788359788365
+
+
+
+
+# Plot number of features VS. cross-validation scores
+import matplotlib.pyplot as plt
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (nb of correct classifications)")
+plt.plot(range(1, len(rfecv_rf.grid_scores_) + 1), rfecv_rf.grid_scores_)
+plt.show()
+
+
+best_features_rf = explanatory_df[features_used_rf]
+
+accuracy_scores_rfe_rf = cross_val_score(random_forest, best_features_rf, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+print "The 10 fold accuracy is: %f " % accuracy_scores_rfe_rf.mean()
+# The 10 fold accuracy is: 0.800066 
+
+
+
+# Perform with grid search
+from sklearn.grid_search import GridSearchCV
+
+
+param_grid = {"max_depth": [31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45]}
+
+
+rf_grid_search = GridSearchCV(random_forest, param_grid, cv = 10, scoring = 'accuracy', verbose = 1)
+rf_grid_search.fit(best_features_rf, response_series)
+
+print rf_grid_search.grid_scores_
+
+
+rf_grid_search.best_params_
+
+grid_mean_scores = [score[1] for score in rf_grid_search.grid_scores_]
+
+best_decision_tree_rf_grid = rf_grid_search.best_estimator_
+print best_decision_tree_rf_grid
+
+# for param grid up to 30
+#ForestClassifierWithCoef(bootstrap=True, compute_importances=None,
+#             criterion='gini', max_depth=30, max_features='auto',
+#             max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+#             min_samples_split=2, n_estimators=500, n_jobs=1,
+#             oob_score=False, random_state=None, verbose=0)
+#[Parallel(n_jobs=1)]: Done   1 jobs       | elapsed:   17.0s
+#[Parallel(n_jobs=1)]: Done  50 jobs       | elapsed: 14.7min
+#Fitting 10 folds for each of 14 candidates, totalling 140 fits
+#[mean: 0.78843, std: 0.04509, params: {'max_depth': 17}, mean: 0.79173, std: 0.04443, params: {'max_depth': 18}, mean: 0.79385, std: 0.04386, params: {'max_depth': 19}, mean: 0.79775, std: 0.04258, params: {'max_depth': 20}, mean: 0.79874, std: 0.04279, params: {'max_depth': 21}, mean: 0.79868, std: 0.04219, params: {'max_depth': 22}, mean: 0.80026, std: 0.04262, params: {'max_depth': 23}, mean: 0.79907, std: 0.04084, params: {'max_depth': 24}, mean: 0.79894, std: 0.04237, params: {'max_depth': 25}, mean: 0.80026, std: 0.04179, params: {'max_depth': 26}, mean: 0.79947, std: 0.04212, params: {'max_depth': 27}, mean: 0.80099, std: 0.04187, params: {'max_depth': 28}, mean: 0.80179, std: 0.04095, params: {'max_depth': 29}, mean: 0.80251, std: 0.04107, params: {'max_depth': 30}]
+#[Parallel(n_jobs=1)]: Done 140 out of 140 | elapsed: 41.3min finished
+
+
+# for param grid 31-45
+#ForestClassifierWithCoef(bootstrap=True, compute_importances=None,
+#             criterion='gini', max_depth=44, max_features='auto',
+#             max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+#             min_samples_split=2, n_estimators=500, n_jobs=1,
+#             oob_score=False, random_state=None, verbose=0)
+#Fitting 10 folds for each of 15 candidates, totalling 150 fits
+#[mean: 0.79854, std: 0.04269, params: {'max_depth': 31}, mean: 0.80013, std: 0.04396, params: {'max_depth': 32}, mean: 0.80053, std: 0.04218, params: {'max_depth': 33}, mean: 0.80119, std: 0.04205, params: {'max_depth': 34}, mean: 0.80139, std: 0.04124, params: {'max_depth': 35}, mean: 0.79974, std: 0.04307, params: {'max_depth': 36}, mean: 0.80040, std: 0.04359, params: {'max_depth': 37}, mean: 0.80000, std: 0.04296, params: {'max_depth': 38}, mean: 0.79894, std: 0.04357, params: {'max_depth': 39}, mean: 0.80007, std: 0.04235, params: {'max_depth': 40}, mean: 0.80000, std: 0.04204, params: {'max_depth': 41}, mean: 0.80026, std: 0.04154, params: {'max_depth': 42}, mean: 0.80066, std: 0.04295, params: {'max_depth': 43}, mean: 0.80185, std: 0.04244, params: {'max_depth': 44}, mean: 0.80053, std: 0.04180, params: {'max_depth': 45}]
+#[Parallel(n_jobs=1)]: Done 150 out of 150 | elapsed: 45.6min finished
+#Traceback (most recent call last):
+
+
+
+# Use different methods to check accuracy
+from sklearn.cross_validation import cross_val_score
+
+random_forest_rfecv = ForestClassifierWithCoef(bootstrap=True, compute_importances=None, criterion='gini', max_depth=30, max_features='auto', max_leaf_nodes=None, min_density=None, min_samples_leaf=1, min_samples_split=2, n_estimators=500, n_jobs=1, oob_score=False, random_state=None, verbose=1)
+
+accuracy_rf_grid = cross_val_score(random_forest_rfecv, best_features_rf, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+
+print "The 10 fold RFE Random Forest accuracy is: %f " % accuracy_rf_grid.mean()
+# The 10 fold RFE Random Forest accuracy is: 0.801455 
+
+
+importances = pandas.DataFrame(rf_grid_search.best_estimator_.feature_importances_, index = best_features_rf.columns, columns =['importance'])
+
+importances.sort(columns = ['importance'], ascending = False, inplace = True)
+print importances
+
+#                                importance
+#EVDtH                             0.228807
+#Fire_Road_1                       0.082245
+#Hydro_Road_1                      0.072533
+#Hydro_Fire_1                      0.060243
+#Distanse_to_Hydrology             0.060059
+#Fire_Road_2                       0.055975
+#diff_Hillshade                    0.051093
+#Vertical_Distance_To_Hydrology    0.050299
+#Hillshade_Noon                    0.042730
+#Wilderness_Area4                  0.038540
+#Slope                             0.031314
+#Sin_Aspect                        0.023692
+#Soil_Type10                       0.023517
+#Soil_Type3                        0.020344
+#Soil_Type38                       0.018885
+#Soil_Type39                       0.018018
+#Wilderness_Area3                  0.017562
+#Wilderness_Area1                  0.017383
+#Soil_Type4                        0.012265
+#Soil_Type40                       0.009819
+#Soil_Type30                       0.007430
+#Soil_Type2                        0.005536
+#Soil_Type17                       0.004814
+#Soil_Type23                       0.004729
+#Soil_Type13                       0.004704
+#Soil_Type22                       0.004641
+#Soil_Type32                       0.004439
+#Soil_Type29                       0.004240
+#Wilderness_Area2                  0.003782
+#Soil_Type33                       0.003782
+#Soil_Type12                       0.003615
+#Soil_Type11                       0.002773
+#Soil_Type6                        0.002460
+#Soil_Type24                       0.002199
+#Soil_Type35                       0.002110
+#Soil_Type31                       0.001974
+#Soil_Type20                       0.001451
+
+# Can i do a confusion matrix?
+#rf_estimator = rf_grid_search.best_estimator_
+#rf_pred = rf_estimator.predict(best_features_rf)
+#
+#rf_cm = pandas.crosstab(response_series, rf_pred, rownames=['True Label'], colnames=['Predicted Label'], margins=True)
+#
+#print rf_cm
+
+# Boosting Tree- not working since GradientBoosting Classifier doesn't have attribute classes_
+
+#class BoostingClassifierWithCoef(GradientBoostingClassifier):
+#   def fit(self, *args, **kwargs):
+#       super(GradientBoostingClassifier, self).fit(*args, **kwargs)
+#       self.coef_ = self.feature_importances_
+#
+#boosting_tree = BoostingClassifierWithCoef()
+#
+#rfecv_gbm = RFECV(boosting_tree, step=1, cv=10,
+#              scoring='accuracy', verbose = 1)
+#rfecv_gbm.fit(explanatory_df, response_series)
+#
+#print "Optimal number of features :{0} of {1} considered".format(rfecv_gbm.n_features_, len(explanatory_df.columns))
+#
+#rfecv_gbm.n_features_
+#
+#print rfecv_gbm.grid_scores_
+#print rfecv_gbm.score
+
+
+
+
+# Extra Trees with RFE
+
+
+class ExtraClassifierWithCoef(ExtraTreesClassifier):
+   def fit(self, *args, **kwargs):
+       super(ExtraTreesClassifier, self).fit(*args, **kwargs)
+       self.coef_ = self.feature_importances_
+
+# these are the default settings for the tree based classifier
+extra_trees = ExtraClassifierWithCoef(n_estimators = 500)
+rfecv_et = RFECV(extra_trees, step=1, cv=10,
+              scoring='accuracy', verbose = 1)
+rfecv_et.fit(explanatory_df, response_series)
+
+print "Optimal number of features :{0} of {1} considered".format(rfecv_et.n_features_, len(explanatory_df.columns))
+# Optimal number of features :38 of 53 considered
+
+
+rfecv_et.n_features_
+
+print rfecv_et.grid_scores_
+#[ 0.54808201  0.6125      0.6792328   0.73492063  0.74755291  0.74755291
+#  0.77050265  0.77585979  0.79556878  0.80046296  0.7957672   0.7989418
+#  0.8021164   0.80059524  0.80185185  0.80119048  0.79867725  0.79801587
+#  0.79689153  0.7978836   0.79669312  0.79728836  0.79847884  0.79623016
+#  0.79960317  0.80079365  0.79874339  0.79986772  0.79960317  0.79722222
+#  0.79722222  0.79993386  0.7984127   0.79880952  0.79880952  0.80039683
+#  0.80165344  0.80231481  0.80026455  0.7984127   0.79986772  0.79808201
+#  0.7994709   0.7994709   0.79940476  0.79874339  0.79973545  0.79781746
+#  0.79966931  0.80191799  0.80019841  0.80033069  0.79861111]
+
+
+
+
+
+features_used_et = explanatory_df.columns[rfecv_et.get_support()]
+print features_used_et
+# Index([u'Slope', u'Vertical_Distance_To_Hydrology', u'Hillshade_Noon', u'Wilderness_Area1', u'Wilderness_Area2', u'Wilderness_Area3', u'Wilderness_Area4', u'Soil_Type2', u'Soil_Type3', u'Soil_Type4', u'Soil_Type6', u'Soil_Type10', u'Soil_Type11', u'Soil_Type12', u'Soil_Type13', u'Soil_Type14', u'Soil_Type17', u'Soil_Type20', u'Soil_Type22', u'Soil_Type23', u'Soil_Type24', u'Soil_Type29', u'Soil_Type30', u'Soil_Type31', u'Soil_Type32', u'Soil_Type33', u'Soil_Type35', u'Soil_Type38', u'Soil_Type39', u'Soil_Type40', u'Sin_Aspect', u'diff_Hillshade', u'EVDtH', u'Distanse_to_Hydrology', u'Hydro_Fire_1', u'Hydro_Road_1', u'Fire_Road_1', u'Fire_Road_2'], dtype='object')
+
+
+
+rfecv_et.score(explanatory_df, response_series)
+# 1.0
+
+
+# Plot number of features VS. cross-validation scores
+import matplotlib.pyplot as plt
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (nb of correct classifications)")
+plt.plot(range(1, len(rfecv_et.grid_scores_) + 1), rfecv_et.grid_scores_)
+plt.show()
+
+best_features_et = explanatory_df[features_used_et]
+
+accuracy_scores_rfe_et = cross_val_score(random_forest, best_features_et, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+print "The 10 fold accuracy is: %f " % accuracy_scores_rfe_et.mean()
+# The 10 fold accuracy is: 0.797884 
+
+ 
+
+param_grid = {"max_depth": range(1,50)}
+
+
+et_grid_search = GridSearchCV(extra_trees, param_grid, cv = 10, scoring = 'accuracy', verbose = 1)
+et_grid_search.fit(best_features_et, response_series)
+
+print et_grid_search.grid_scores_
+
+#[Parallel(n_jobs=1)]: Done   1 jobs       | elapsed:    2.3s
+#[Parallel(n_jobs=1)]: Done  50 jobs       | elapsed:  3.1min
+#
+#[Parallel(n_jobs=1)]: Done 200 jobs       | elapsed: 27.2min
+#[Parallel(n_jobs=1)]: Done 450 jobs       | elapsed: 88.8min
+#Fitting 10 folds for each of 49 candidates, totalling 490 fits
+#[mean: 0.52606, std: 0.06846, params: {'max_depth': 1}, mean: 0.55317, std: 0.06583, params: {'max_depth': 2}, mean: 0.58161, std: 0.06199, params: {'max_depth': 3}, mean: 0.60456, std: 0.07126, params: {'max_depth': 4}, mean: 0.62077, std: 0.07957, params: {'max_depth': 5}, mean: 0.63426, std: 0.07755, params: {'max_depth': 6}, mean: 0.64365, std: 0.07779, params: {'max_depth': 7}, mean: 0.66177, std: 0.07990, params: {'max_depth': 8}, mean: 0.67824, std: 0.07654, params: {'max_depth': 9}, mean: 0.69444, std: 0.05978, params: {'max_depth': 10}, mean: 0.70906, std: 0.05708, params: {'max_depth': 11}, mean: 0.72216, std: 0.05511, params: {'max_depth': 12}, mean: 0.73294, std: 0.05287, params: {'max_depth': 13}, mean: 0.74272, std: 0.05341, params: {'max_depth': 14}, mean: 0.75317, std: 0.05474, params: {'max_depth': 15}, mean: 0.75966, std: 0.05403, params: {'max_depth': 16}, mean: 0.76640, std: 0.04935, params: {'max_depth': 17}, mean: 0.77202, std: 0.04738, params: {'max_depth': 18}, mean: 0.77771, std: 0.04811, params: {'max_depth': 19}, mean: 0.78254, std: 0.04605, params: {'max_depth': 20}, mean: 0.78697, std: 0.04597, params: {'max_depth': 21}, mean: 0.79187, std: 0.04326, params: {'max_depth': 22}, mean: 0.79319, std: 0.04436, params: {'max_depth': 23}, mean: 0.79411, std: 0.04374, params: {'max_depth': 24}, mean: 0.79511, std: 0.04469, params: {'max_depth': 25}, mean: 0.79762, std: 0.04228, params: {'max_depth': 26}, mean: 0.79848, std: 0.04353, params: {'max_depth': 27}, mean: 0.79861, std: 0.04445, params: {'max_depth': 28}, mean: 0.79934, std: 0.04246, params: {'max_depth': 29}, mean: 0.79960, std: 0.04290, params: {'max_depth': 30}, mean: 0.80026, std: 0.04223, params: {'max_depth': 31}, mean: 0.80060, std: 0.04348, params: {'max_depth': 32}, mean: 0.80165, std: 0.04214, params: {'max_depth': 33}, mean: 0.80165, std: 0.04248, params: {'max_depth': 34}, mean: 0.80119, std: 0.04245, params: {'max_depth': 35}, mean: 0.80231, std: 0.04349, params: {'max_depth': 36}, mean: 0.80033, std: 0.04209, params: {'max_depth': 37}, mean: 0.80139, std: 0.04256, params: {'max_depth': 38}, mean: 0.80245, std: 0.04167, params: {'max_depth': 39}, mean: 0.80033, std: 0.04111, params: {'max_depth': 40}, mean: 0.80119, std: 0.04252, params: {'max_depth': 41}, mean: 0.79987, std: 0.04345, params: {'max_depth': 42}, mean: 0.80278, std: 0.04234, params: {'max_depth': 43}, mean: 0.79967, std: 0.04250, params: {'max_depth': 44}, mean: 0.80112, std: 0.04307, params: {'max_depth': 45}, mean: 0.80165, std: 0.04333, params: {'max_depth': 46}, mean: 0.80152, std: 0.04263, params: {'max_depth': 47}, mean: 0.80060, std: 0.04324, params: {'max_depth': 48}, mean: 0.80152, std: 0.04350, params: {'max_depth': 49}]
+#[Parallel(n_jobs=1)]: Done 490 out of 490 | elapsed: 99.3min finished
+
+
+
+
+et_grid_search.best_params_
+
+grid_mean_scores_et = [score[1] for score in et_grid_search.grid_scores_]
+
+best_decision_tree_et_grid = et_grid_search.best_estimator_
+print best_decision_tree_et_grid
+
+#print best_decision_tree_et_grid
+#ExtraClassifierWithCoef(bootstrap=False, compute_importances=None,
+#            criterion='gini', max_depth=43, max_features='auto',
+#            max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+#            min_samples_split=2, n_estimators=500, n_jobs=1,
+#            oob_score=False, random_state=None, verbose=0)
+
+
+
+extra_trees_rfecv = ExtraClassifierWithCoef(bootstrap=False, compute_importances=None,
+            criterion='gini', max_depth=43, max_features='auto',
+            max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+            min_samples_split=2, n_estimators=500, n_jobs=1,
+            oob_score=False, random_state=None, verbose=1)
+
+
+accuracy_et_grid = cross_val_score(extra_trees_rfecv, best_features_et, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+
+print "The 10 fold RFE Extra Trees accuracy is: %f " % accuracy_et_grid.mean()
+# The 10 fold RFE Extra Trees accuracy is: 0.800198 
+
+
+
+importances = pandas.DataFrame(et_grid_search.best_estimator_.feature_importances_, index = best_features_et.columns, columns =['importance'])
+
+importances.sort(columns = ['importance'], ascending = False, inplace = True)
+print importances
+#
+#                                importance
+#
+#EVDtH                             0.167284
+#Fire_Road_1                       0.067482
+#Hydro_Road_1                      0.065074
+#Wilderness_Area4                  0.059208
+#Hydro_Fire_1                      0.057652
+#Distanse_to_Hydrology             0.054404
+#Fire_Road_2                       0.053946
+#diff_Hillshade                    0.047318
+#Vertical_Distance_To_Hydrology    0.045472
+#Hillshade_Noon                    0.041763
+#Slope                             0.036311
+#Soil_Type10                       0.032074
+#Soil_Type38                       0.026619
+#Soil_Type39                       0.024944
+#Soil_Type3                        0.023896
+#Sin_Aspect                        0.023686
+#Wilderness_Area1                  0.020715
+#Wilderness_Area3                  0.018853
+#Soil_Type4                        0.015979
+#Soil_Type40                       0.014720
+#Soil_Type30                       0.011737
+#Soil_Type17                       0.009984
+#Soil_Type2                        0.008939
+#Soil_Type22                       0.007424
+#Soil_Type13                       0.007389
+#Soil_Type23                       0.007040
+#Soil_Type29                       0.006197
+#Soil_Type32                       0.005745
+#Soil_Type12                       0.005656
+#Soil_Type33                       0.004654
+#Wilderness_Area2                  0.004399
+#Soil_Type11                       0.004251
+#Soil_Type6                        0.004030
+#Soil_Type24                       0.003844
+#Soil_Type35                       0.003727
+#Soil_Type31                       0.003308
+#Soil_Type20                       0.002239
+#Soil_Type14                       0.002036
+
+
+####################  Grid search for Boosting Trees   #######################
+from numpy import arange
+
+gbm = GradientBoostingClassifier()
+learning_rate_range = arange(0.01, 0.4, 0.02)
+subsampling_range = arange(0.25, 1, 0.25)
+n_estimators_range = range(25, 100, 25)
+gbm_grid_params = dict(learning_rate = learning_rate_range, n_estimators = n_estimators_range, subsample = subsampling_range)
+gbm_grid = GridSearchCV(gbm, gbm_grid_params, cv=10, scoring='accuracy', n_jobs = -1)
+gbm_grid.fit(best_features_rf, response_series)
+gbm_estimator = gbm_grid.best_estimator_
+
+gbm_accuracy = cross_val_score(gbm_estimator, best_features_rf, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+print gbm_accuracy.mean()
+# 0.751124338624
+
+
+#################### Bringing in test data ####################################
+
+test = pandas.read_csv('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/tree_test.csv')
+
+pandas.set_option('display.max_columns', None)
+df_test = test
+df_test.head()
+df_test.describe()
+
+### Recreating new variables
+
+df_test["Sin_Aspect"] = numpy.sin(df_test.Aspect)
+df_test.drop(['Id', 'Aspect'],  1, inplace = True)
+
+df_test.sqr_Hillshade_3pm = (df_test.Hillshade_3pm)**2
+df_test.sqr_Hillshade_Noon = (df_test.Hillshade_Noon)**2
+df_test.sqr_Hillshade_9am = (df_test.Hillshade_9am)**2
+
+df_test['diff_Hillshade'] =  df_test.Hillshade_3pm - df_test.Hillshade_9am
+
+df_test['EVDtH'] = df_test.Elevation-df_test.Vertical_Distance_To_Hydrology
+
+df_test['EHDtH'] = df_test.Elevation-df_test.Horizontal_Distance_To_Hydrology*0.15
+
+df_test['Distanse_to_Hydrology'] = (df_test['Horizontal_Distance_To_Hydrology']**2 +df_test['Vertical_Distance_To_Hydrology']**2)**0.5
+
+df_test['Hydro_Fire_1'] = df_test['Horizontal_Distance_To_Hydrology']+ df_test['Horizontal_Distance_To_Fire_Points']
+
+df_test['Hydro_Fire_2'] = abs(df_test['Horizontal_Distance_To_Hydrology']-df_test['Horizontal_Distance_To_Fire_Points'])
+
+df_test['Hydro_Road_1'] = abs(df_test['Horizontal_Distance_To_Hydrology']+ df_test['Horizontal_Distance_To_Roadways'])
+
+df_test['Hydro_Road_2'] = abs(df_test['Horizontal_Distance_To_Hydrology']-df_test['Horizontal_Distance_To_Roadways'])
+
+df_test['Fire_Road_1'] = abs(df_test['Horizontal_Distance_To_Fire_Points']+ df_test['Horizontal_Distance_To_Roadways'])
+
+df_test['Fire_Road_2'] = abs(df_test['Horizontal_Distance_To_Fire_Points']-df_test['Horizontal_Distance_To_Roadways'])
+
+######################  Data cleaning ########################################
+
+explanatory_features_test = [col for col in df_test.columns if col not in ['Cover_Type']]
+explanatory_df_test = df_test[explanatory_features]
+
+explanatory_df_test.dropna(how = 'all', inplace = True)
+
+explanatory_colnames_test = explanatory_df_test.columns
+
+
+# Hillshade index of 0 for some
+def median(var):
+    med = numpy.median(var[var > 0])
+# Assign the median to the zero elements 
+    var[var == 0] = med
+    
+median(df_test.Hillshade_3pm)
+median(df_test.Hillshade_9am)
+median(df_test.Hillshade_Noon)
+
+df_test.Hillshade_9am.describe()
+df_test.Hillshade_3pm.describe()
+df_test.Hillshade_Noon.describe()
+
+# Dropped features with zero variation in training set
+
+explanatory_df_test.drop(["Soil_Type7", "Soil_Type15"], 1, inplace = True)
+
+# Dropped features with >0.9 correlation in training set
+explanatory_df_test.drop(['EHDtH',
+  'Elevation',
+  'Horizontal_Distance_To_Hydrology',
+  'Hydro_Road_2',
+  'Horizontal_Distance_To_Roadways',
+  'Hillshade_9am',
+  'Hillshade_3pm',
+  'Hydro_Fire_2',
+  'Horizontal_Distance_To_Fire_Points']
+, 1, inplace = True)
+
+# Scaled using the training transformation
+explanatory_df_test = pandas.DataFrame(scaler.transform(explanatory_df_test), columns = explanatory_df_test.columns)
+
+best_features_rf_test = explanatory_df_test[features_used_rf]
+test_ids = test['Id']
+
+
+with open('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/first_prediction.csv', "wb") as outfile:
+    outfile.write("Id,Cover_Type\n")
+    for e, val in enumerate(list(best_decision_tree_rf_grid.predict(best_features_rf_test))):
+        outfile.write("%s,%s\n"%(test_ids[e],val))
+        
+best_features_et_test = explanatory_df_test[features_used_et]
+test_ids = test['Id']
+
+
+with open('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/second_prediction.csv', "wb") as outfile:
+    outfile.write("Id,Cover_Type\n")
+    for e, val in enumerate(list(best_decision_tree_et_grid.predict(best_features_et_test))):
+        outfile.write("%s,%s\n"%(test_ids[e],val))
+        
+##########################  Refine Extra Trees grid search  ##################
+        
+param_grid_2 = {"max_depth": range(1,50), "max_features": ["auto", "log2", None]}
+
+
+et_grid_search_2 = GridSearchCV(extra_trees, param_grid_2, cv = 10, scoring = 'accuracy', verbose = 1)
+et_grid_search_2.fit(best_features_et, response_series)
+
+print et_grid_search_2.grid_scores_
+
+et_grid_search_2.best_params_
+
+grid_mean_scores_et_2 = [score[1] for score in et_grid_search_2.grid_scores_]
+
+best_decision_tree_et_grid_2 = et_grid_search_2.best_estimator_
+print best_decision_tree_et_grid_2
+
+# ExtraClassifierWithCoef(bootstrap=False, compute_importances=None,
+#            criterion='gini', max_depth=38, max_features=None,
+#            max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+#            min_samples_split=2, n_estimators=500, n_jobs=1,
+#            oob_score=False, random_state=None, verbose=0)
+
+
+###  Checking accuracy again
+
+extra_trees_rfecv = ExtraClassifierWithCoef(bootstrap=False, compute_importances=None,
+            criterion='gini', max_depth=43, max_features='auto',
+            max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+            min_samples_split=2, n_estimators=500, n_jobs=1,
+            oob_score=False, random_state=None, verbose=1)
+
+
+accuracy_et_grid = cross_val_score(extra_trees_rfecv, best_features_et, response_series, cv=10, scoring='accuracy', n_jobs = -1)
+
+print "The 10 fold RFE Extra Trees accuracy is: %f " % accuracy_et_grid.mean()
+
+
+importances = pandas.DataFrame(et_grid_search_2.best_estimator_.feature_importances_, index = best_features_et.columns, columns =['importance'])
+
+importances.sort(columns = ['importance'], ascending = False, inplace = True)
+print importances
+
+#                                importance
+#EVDtH                             0.262645
+#Wilderness_Area4                  0.088159
+#Fire_Road_1                       0.059460
+#Distanse_to_Hydrology             0.055432
+#Fire_Road_2                       0.049309
+#Hydro_Road_1                      0.048998
+#Hydro_Fire_1                      0.047212
+#Vertical_Distance_To_Hydrology    0.041702
+#diff_Hillshade                    0.037868
+#Hillshade_Noon                    0.035467
+#Soil_Type10                       0.034385
+#Slope                             0.025164
+#Soil_Type38                       0.021135
+#Soil_Type39                       0.019676
+#Soil_Type3                        0.018233
+#Soil_Type4                        0.016386
+#Sin_Aspect                        0.014760
+#Wilderness_Area3                  0.014166
+#Soil_Type40                       0.013409
+#Wilderness_Area1                  0.013346
+#Soil_Type2                        0.008723
+#Soil_Type17                       0.007431
+#Soil_Type30                       0.007104
+#Soil_Type12                       0.006585
+#Soil_Type32                       0.005909
+#Soil_Type23                       0.005422
+#Soil_Type22                       0.005019
+#Soil_Type11                       0.004890
+#Soil_Type29                       0.004591
+#Soil_Type33                       0.004412
+#Soil_Type13                       0.003589
+#Soil_Type24                       0.003585
+#Soil_Type6                        0.003548
+#Soil_Type35                       0.003371
+#Soil_Type31                       0.003132
+#Soil_Type20                       0.002539
+#Wilderness_Area2                  0.002049
+#Soil_Type14                       0.001187
+
+best_features_et_test_2 = explanatory_df_test[features_used_et]
+test_ids = test['Id']
+
+
+with open('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/second_prediction.csv', "wb") as outfile:
+    outfile.write("Id,Cover_Type\n")
+    for e, val in enumerate(list(best_decision_tree_et_grid_2 .predict(best_features_et_test_2))):
+        outfile.write("%s,%s\n"%(test_ids[e],val))
