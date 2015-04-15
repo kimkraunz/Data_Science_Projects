@@ -1,0 +1,434 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 17 18:48:28 2015
+
+@author: jkraunz
+"""
+# I want to create a model based on rfe on a database that just contains Cover_types 1 and 2 and then test the entire database on it.
+
+
+import pandas
+import numpy
+import matplotlib.pyplot as plt
+from pylab import rcParams
+from sklearn import preprocessing
+from sklearn.svm import SVC
+from sklearn.cross_validation import StratifiedKFold, cross_val_score
+from sklearn.feature_selection import RFECV
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+
+# Functions
+
+def find_zero_var(df):
+   """finds columns in the dataframe with zero variance -- ie those
+       with the same value in every observation.
+   """   
+   toKeep = []
+   toDelete = []
+   for col in df:
+       if len(df[col].value_counts()) > 1:
+           toKeep.append(col)
+       else:
+           toDelete.append(col)
+       ##
+   return {'toKeep':toKeep, 'toDelete':toDelete} 
+
+def find_perfect_corr(df):
+   """finds columns that are eother positively or negatively perfectly correlated (with correlations of +1 or -1), and creates a dict 
+       that includes which columns to drop so that each remaining column
+       is independent
+   """  
+   corrMatrix = df.corr()
+   corrMatrix.loc[:,:] =  numpy.tril(corrMatrix.values, k = -1)
+   already_in = set()
+   result = []
+   for col in corrMatrix:
+       perfect_corr = corrMatrix[col][abs(numpy.round(corrMatrix[col],10)) == 1.0 ].index.tolist()
+       if perfect_corr and col not in already_in:
+           already_in.update(set(perfect_corr))
+           perfect_corr.append(col)
+           result.append(perfect_corr)
+   toRemove = []
+   for item in result:
+       toRemove.append(item[1:(len(item)+1)])
+   toRemove = sum(toRemove, [])
+   return {'corrGroupings':result, 'toRemove':toRemove}  
+   
+# Data
+
+df_extra = pandas.read_csv('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/tree_train.csv')
+
+pandas.set_option('display.max_columns', None)
+df_extra_12 = df_extra[df_extra.Cover_Type < 3]
+df_extra_12.head()
+df_extra_12.Cover_Type.unique()
+
+
+# Data manipulation
+
+# convert Aspect from compass degree to sin wave
+df_extra_12["Sin_Aspect"] = numpy.sin(df_extra_12.Aspect)
+df_extra_12.drop(['Id', 'Aspect'],  1, inplace = True)
+
+
+
+df_extra_12['diff_Hillshade'] =  df_extra_12.Hillshade_3pm - df_extra_12.Hillshade_9am
+
+df_extra_12['EVDtH'] = df_extra_12.Elevation-df_extra_12.Vertical_Distance_To_Hydrology
+
+df_extra_12['EHDtH'] = df_extra_12.Elevation-df_extra_12.Horizontal_Distance_To_Hydrology*0.15
+
+df_extra_12['Distanse_to_Hydrology'] = (df_extra_12['Horizontal_Distance_To_Hydrology']**2 +df_extra_12['Vertical_Distance_To_Hydrology']**2)**0.5
+
+df_extra_12['Hydro_Fire_1'] = df_extra_12['Horizontal_Distance_To_Hydrology']+ df_extra_12['Horizontal_Distance_To_Fire_Points']
+
+df_extra_12['Hydro_Fire_2'] = abs(df_extra_12['Horizontal_Distance_To_Hydrology']-df_extra_12['Horizontal_Distance_To_Fire_Points'])
+
+df_extra_12['Hydro_Road_1'] = abs(df_extra_12['Horizontal_Distance_To_Hydrology']+ df_extra_12['Horizontal_Distance_To_Roadways'])
+
+df_extra_12['Hydro_Road_2'] = abs(df_extra_12['Horizontal_Distance_To_Hydrology']-df_extra_12['Horizontal_Distance_To_Roadways'])
+
+df_extra_12['Fire_Road_1'] = abs(df_extra_12['Horizontal_Distance_To_Fire_Points']+ df_extra_12['Horizontal_Distance_To_Roadways'])
+
+df_extra_12['Fire_Road_2'] = abs(df_extra['Horizontal_Distance_To_Fire_Points']-df_extra['Horizontal_Distance_To_Roadways'])
+
+
+df_extra_12.head()
+
+# 1. Separate into explantory features and response variable
+explanatory_features_extra_12 = [col for col in df_extra_12.columns if col not in ['Cover_Type']]
+explanatory_df_extra_12 = df_extra_12[explanatory_features_extra_12]
+
+explanatory_df_extra_12.dropna(how = 'all', inplace = True)
+
+explanatory_colnames_extra_12 = explanatory_df_extra_12.columns
+
+response_series_extra_12 = df_extra_12.Cover_Type
+response_series_extra_12.dropna(how = 'all', inplace = True)
+
+response_series_extra_12.index[~response_series_extra_12.index.isin(explanatory_df_extra_12.index)]
+
+# did not need to split into numerical and string features since all are numerical
+
+# 3. Check for NaNs
+
+explanatory_df_extra_12.describe()
+response_series_extra_12.describe()
+
+# Hillshade index of 0 for some
+def median(var):
+    med = numpy.median(var[var > 0])
+# Assign the median to the zero elements 
+    var[var == 0] = med
+    
+median(df_extra_12.Hillshade_3pm)
+median(df_extra_12.Hillshade_9am)
+
+df_extra_12.Hillshade_9am.describe()
+df_extra_12.Hillshade_3pm.describe()
+
+# 4. Check for features with no variation
+   
+find_zero_var(explanatory_df_extra_12)
+
+# Soil_Type7 and Soil_Type15 have zero variance.
+
+
+
+
+explanatory_df_extra_12.drop(['Soil_Type1','Soil_Type5', 'Soil_Type7', 'Soil_Type14', 'Soil_Type15', 'Soil_Type37'], 1, inplace = True)
+
+explanatory_df_extra_12.columns
+
+# 5. Check for perfect correlation
+
+find_perfect_corr(df_extra_12)
+
+# 6. Scale
+
+scaler = preprocessing.StandardScaler()
+scaler.fit(explanatory_df_extra_12)
+explanatory_df_extra_12 = pandas.DataFrame(scaler.transform(explanatory_df_extra_12), columns = explanatory_df_extra_12.columns)
+
+explanatory_df_extra_12.describe()
+
+
+############################## Extra Trees ####################################
+
+
+# Find best features of Cover_Types 1 and 2 using RFE on Extra Trees Classifier
+
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.grid_search import GridSearchCV
+
+class ExtraClassifierWithCoef(ExtraTreesClassifier):
+   def fit(self, *args, **kwargs):
+       super(ExtraTreesClassifier, self).fit(*args, **kwargs)
+       self.coef_ = self.feature_importances_
+
+# these are the default settings for the tree based classifier
+extra_12_trees = ExtraClassifierWithCoef(n_estimators = 500)
+
+rfecv_et_12 = RFECV(extra_12_trees, step=1, cv=10,
+              scoring='accuracy', verbose = 1)
+rfecv_et_12.fit(explanatory_df_extra_12, response_series_extra_12)
+
+print "Optimal number of features :{0} of {1} considered".format(rfecv_et_12.n_features_, len(explanatory_df_extra_12.columns))
+# Optimal number of features :16 of 58 considered
+
+
+rfecv_et_12.n_features_
+
+print rfecv_et_12.grid_scores_
+#[ 0.66643519  0.69861111  0.73009259  0.7287037   0.74398148  0.75
+#  0.75069444  0.74328704  0.74976852  0.7587963   0.76041667  0.75810185
+#  0.75717593  0.76111111  0.75949074  0.76296296  0.76226852  0.76087963
+#  0.75740741  0.75648148  0.76041667  0.75972222  0.75902778  0.76018519
+#  0.75972222  0.75694444  0.75532407  0.75601852  0.75416667  0.75763889
+#  0.75416667  0.75462963  0.75856481  0.75462963  0.75393519  0.75231481
+#  0.75601852  0.75393519  0.75416667  0.75347222  0.75486111  0.75763889
+#  0.75671296  0.75231481  0.75416667  0.75763889  0.75532407  0.75671296
+#  0.7525463   0.75578704  0.75763889  0.75625     0.75671296  0.75509259
+#  0.75486111  0.75462963  0.75509259  0.75486111]
+
+
+features_used_et_12 = explanatory_df_extra_12.columns[rfecv_et_12.get_support()]
+print features_used_et_12
+#Index([u'Elevation', u'Horizontal_Distance_To_Hydrology', u'Vertical_Distance_To_Hydrology', u'Horizontal_Distance_To_Roadways', u'Hillshade_9am', u'Hillshade_Noon', u'Horizontal_Distance_To_Fire_Points', u'EVDtH', u'EHDtH', u'Distanse_to_Hydrology', u'Hydro_Fire_1', u'Hydro_Fire_2', u'Hydro_Road_1', u'Hydro_Road_2', u'Fire_Road_1', u'Fire_Road_2'], dtype='object')
+
+###############################################################################
+
+# Now perform grid search on full dataset using features from dataset limited to Cover_type 1 and 2
+
+df_extra_full = df_extra
+df_extra_full.head()
+df_extra_full.Cover_Type.unique()
+
+
+# Data manipulation
+
+# convert Aspect from compass degree to sin wave
+df_extra_full["Sin_Aspect"] = numpy.sin(df_extra_full.Aspect)
+df_extra_full.drop(['Id', 'Aspect'],  1, inplace = True)
+
+df_extra_full['diff_Hillshade'] =  df_extra_full.Hillshade_3pm - df_extra_full.Hillshade_9am
+
+df_extra_full['EVDtH'] = df_extra_full.Elevation-df_extra_full.Vertical_Distance_To_Hydrology
+
+df_extra_full['EHDtH'] = df_extra_full.Elevation-df_extra_full.Horizontal_Distance_To_Hydrology*0.15
+
+df_extra_full['Distanse_to_Hydrology'] = (df_extra_full['Horizontal_Distance_To_Hydrology']**2 +df_extra_full['Vertical_Distance_To_Hydrology']**2)**0.5
+
+df_extra_full['Hydro_Fire_1'] = df_extra_full['Horizontal_Distance_To_Hydrology']+ df_extra_full['Horizontal_Distance_To_Fire_Points']
+
+df_extra_full['Hydro_Fire_2'] = abs(df_extra_full['Horizontal_Distance_To_Hydrology']-df_extra_full['Horizontal_Distance_To_Fire_Points'])
+
+df_extra_full['Hydro_Road_1'] = abs(df_extra_full['Horizontal_Distance_To_Hydrology']+ df_extra_full['Horizontal_Distance_To_Roadways'])
+
+df_extra_full['Hydro_Road_2'] = abs(df_extra_full['Horizontal_Distance_To_Hydrology']-df_extra_full['Horizontal_Distance_To_Roadways'])
+
+df_extra_full['Fire_Road_1'] = abs(df_extra_full['Horizontal_Distance_To_Fire_Points']+ df_extra_full['Horizontal_Distance_To_Roadways'])
+
+df_extra_full['Fire_Road_2'] = abs(df_extra['Horizontal_Distance_To_Fire_Points']-df_extra['Horizontal_Distance_To_Roadways'])
+
+
+df_extra_full.head()
+
+# 1. Separate into explantory features and response variable
+explanatory_features_extra_full = [col for col in df_extra_full.columns if col not in ['Cover_Type']]
+explanatory_df_extra_full = df_extra_full[explanatory_features_extra_full]
+
+explanatory_df_extra_full.dropna(how = 'all', inplace = True)
+
+explanatory_colnames_extra_full = explanatory_df_extra_full.columns
+
+response_series_extra_full = df_extra_full.Cover_Type
+response_series_extra_full.dropna(how = 'all', inplace = True)
+
+response_series_extra_full.index[~response_series_extra_full.index.isin(explanatory_df_extra_full.index)]
+
+# did not need to split into numerical and string features since all are numerical
+
+# 3. Check for NaNs
+
+explanatory_df_extra_full.describe()
+response_series_extra_full.describe()
+
+# Hillshade index of 0 for some
+def median(var):
+    med = numpy.median(var[var > 0])
+# Assign the median to the zero elements 
+    var[var == 0] = med
+    
+median(df_extra_full.Hillshade_3pm)
+median(df_extra_full.Hillshade_9am)
+
+df_extra_full.Hillshade_9am.describe()
+df_extra_full.Hillshade_3pm.describe()
+
+# 4. Check for features with no variation
+   
+find_zero_var(explanatory_df_extra_full)
+
+# drop the following:
+
+explanatory_df_extra_full.drop(['Soil_Type1','Soil_Type5', 'Soil_Type7', 'Soil_Type14', 'Soil_Type15', 'Soil_Type37'], 1, inplace = True)
+
+explanatory_df_extra_full.columns
+
+# 5. Check for perfect correlation
+
+find_perfect_corr(df_extra_full)
+
+# 6. Scale
+
+scaler = preprocessing.StandardScaler()
+scaler.fit(explanatory_df_extra_full)
+explanatory_df_extra_full = pandas.DataFrame(scaler.transform(explanatory_df_extra_full), columns = explanatory_df_extra_full.columns)
+
+explanatory_df_extra_full.describe()
+
+# 7. Define features to those found in RFE for Cover_types 1 and 1
+
+best_features_12 = explanatory_df_extra_full[features_used_et_12]
+
+# Performing grid search
+
+extra_full_trees = ExtraClassifierWithCoef(n_estimators = 500)
+
+param_grid_full = {"max_depth": range(10,40), "max_features": ["auto", "log2", None]}
+
+et_grid_search_full = GridSearchCV(extra_full_trees, param_grid_full, cv = 10, scoring = 'accuracy', verbose = 1)
+et_grid_search_full.fit(best_features_12, response_series_extra_full)
+
+print et_grid_search_full.grid_scores_
+
+et_grid_search_full.best_params_
+
+grid_mean_scores_et_full = [score[1] for score in et_grid_search_full.grid_scores_]
+
+best_et_grid_full = et_grid_search_full.best_estimator_
+print best_et_grid_full
+
+
+importances = pandas.DataFrame(et_grid_search_full.best_estimator_.feature_importances_, index = best_features_12.columns, columns =['importance'])
+
+importances.sort(columns = ['importance'], ascending = False, inplace = True)
+print importances
+
+#[Parallel(n_jobs=1)]: Done   1 jobs       | elapsed:    9.1s
+#[Parallel(n_jobs=1)]: Done  50 jobs       | elapsed:  9.7min
+#[Parallel(n_jobs=1)]: Done 200 jobs       | elapsed: 57.0min
+#[Parallel(n_jobs=1)]: Done 450 jobs       | elapsed: 161.6min
+#[Parallel(n_jobs=1)]: Done 800 jobs       | elapsed: 307.1min
+#[Parallel(n_jobs=1)]: Done 900 out of 900 | elapsed: 350.4min finished
+#Fitting 10 folds for each of 90 candidates, totalling 900 fits
+#[mean: 0.71733, std: 0.02864, params: {'max_features': 'auto', 'max_depth': 10}, mean: 0.71885, std: 0.02715, params: {'max_features': 'log2', 'max_depth': 10}, mean: 0.73485, std: 0.03320, params: {'max_features': None, 'max_depth': 10}, mean: 0.73208, std: 0.02920, params: {'max_features': 'auto', 'max_depth': 11}, mean: 0.72976, std: 0.02973, params: {'max_features': 'log2', 'max_depth': 11}, mean: 0.74927, std: 0.03454, params: {'max_features': None, 'max_depth': 11}, mean: 0.74484, std: 0.03358, params: {'max_features': 'auto', 'max_depth': 12}, mean: 0.74425, std: 0.03208, params: {'max_features': 'log2', 'max_depth': 12}, mean: 0.76124, std: 0.03650, params: {'max_features': None, 'max_depth': 12}, mean: 0.75410, std: 0.03394, params: {'max_features': 'auto', 'max_depth': 13}, mean: 0.75357, std: 0.03464, params: {'max_features': 'log2', 'max_depth': 13}, mean: 0.76925, std: 0.03778, params: {'max_features': None, 'max_depth': 13}, mean: 0.76290, std: 0.03527, params: {'max_features': 'auto', 'max_depth': 14}, mean: 0.76164, std: 0.03453, params: {'max_features': 'log2', 'max_depth': 14}, mean: 0.77606, std: 0.03792, params: {'max_features': None, 'max_depth': 14}, mean: 0.77183, std: 0.03790, params: {'max_features': 'auto', 'max_depth': 15}, mean: 0.77288, std: 0.03622, params: {'max_features': 'log2', 'max_depth': 15}, mean: 0.78122, std: 0.03689, params: {'max_features': None, 'max_depth': 15}, mean: 0.77983, std: 0.03886, params: {'max_features': 'auto', 'max_depth': 16}, mean: 0.77930, std: 0.03865, params: {'max_features': 'log2', 'max_depth': 16}, mean: 0.78591, std: 0.03917, params: {'max_features': None, 'max_depth': 16}, mean: 0.78360, std: 0.03852, params: {'max_features': 'auto', 'max_depth': 17}, mean: 0.78439, std: 0.04017, params: {'max_features': 'log2', 'max_depth': 17}, mean: 0.78981, std: 0.03749, params: {'max_features': None, 'max_depth': 17}, mean: 0.78909, std: 0.03862, params: {'max_features': 'auto', 'max_depth': 18}, mean: 0.78757, std: 0.03908, params: {'max_features': 'log2', 'max_depth': 18}, mean: 0.79411, std: 0.03738, params: {'max_features': None, 'max_depth': 18}, mean: 0.78889, std: 0.03989, params: {'max_features': 'auto', 'max_depth': 19}, mean: 0.79067, std: 0.03901, params: {'max_features': 'log2', 'max_depth': 19}, mean: 0.79398, std: 0.03926, params: {'max_features': None, 'max_depth': 19}, mean: 0.79239, std: 0.03733, params: {'max_features': 'auto', 'max_depth': 20}, mean: 0.79127, std: 0.03954, params: {'max_features': 'log2', 'max_depth': 20}, mean: 0.79517, std: 0.03823, params: {'max_features': None, 'max_depth': 20}, mean: 0.79405, std: 0.04008, params: {'max_features': 'auto', 'max_depth': 21}, mean: 0.79306, std: 0.04082, params: {'max_features': 'log2', 'max_depth': 21}, mean: 0.79590, std: 0.03911, params: {'max_features': None, 'max_depth': 21}, mean: 0.79517, std: 0.03879, params: {'max_features': 'auto', 'max_depth': 22}, mean: 0.79491, std: 0.03875, params: {'max_features': 'log2', 'max_depth': 22}, mean: 0.79517, std: 0.03938, params: {'max_features': None, 'max_depth': 22}, mean: 0.79484, std: 0.03954, params: {'max_features': 'auto', 'max_depth': 23}, mean: 0.79550, std: 0.03891, params: {'max_features': 'log2', 'max_depth': 23}, mean: 0.79702, std: 0.03817, params: {'max_features': None, 'max_depth': 23}, mean: 0.79550, std: 0.03842, params: {'max_features': 'auto', 'max_depth': 24}, mean: 0.79484, std: 0.04027, params: {'max_features': 'log2', 'max_depth': 24}, mean: 0.79656, std: 0.03870, params: {'max_features': None, 'max_depth': 24}, mean: 0.79689, std: 0.03982, params: {'max_features': 'auto', 'max_depth': 25}, mean: 0.79517, std: 0.03999, params: {'max_features': 'log2', 'max_depth': 25}, mean: 0.79630, std: 0.03908, params: {'max_features': None, 'max_depth': 25}, mean: 0.79425, std: 0.04016, params: {'max_features': 'auto', 'max_depth': 26}, mean: 0.79828, std: 0.03955, params: {'max_features': 'log2', 'max_depth': 26}, mean: 0.79716, std: 0.03820, params: {'max_features': None, 'max_depth': 26}, mean: 0.79696, std: 0.03839, params: {'max_features': 'auto', 'max_depth': 27}, mean: 0.79623, std: 0.03976, params: {'max_features': 'log2', 'max_depth': 27}, mean: 0.79511, std: 0.03947, params: {'max_features': None, 'max_depth': 27}, mean: 0.79444, std: 0.03949, params: {'max_features': 'auto', 'max_depth': 28}, mean: 0.79742, std: 0.03905, params: {'max_features': 'log2', 'max_depth': 28}, mean: 0.79597, std: 0.03959, params: {'max_features': None, 'max_depth': 28}, mean: 0.79689, std: 0.03937, params: {'max_features': 'auto', 'max_depth': 29}, mean: 0.79676, std: 0.04015, params: {'max_features': 'log2', 'max_depth': 29}, mean: 0.79716, std: 0.03876, params: {'max_features': None, 'max_depth': 29}, mean: 0.79583, std: 0.03815, params: {'max_features': 'auto', 'max_depth': 30}, mean: 0.79663, std: 0.04120, params: {'max_features': 'log2', 'max_depth': 30}, mean: 0.79649, std: 0.03845, params: {'max_features': None, 'max_depth': 30}, mean: 0.79557, std: 0.03956, params: {'max_features': 'auto', 'max_depth': 31}, mean: 0.79630, std: 0.03950, params: {'max_features': 'log2', 'max_depth': 31}, mean: 0.79649, std: 0.03829, params: {'max_features': None, 'max_depth': 31}, mean: 0.79451, std: 0.03930, params: {'max_features': 'auto', 'max_depth': 32}, mean: 0.79616, std: 0.03968, params: {'max_features': 'log2', 'max_depth': 32}, mean: 0.79623, std: 0.03842, params: {'max_features': None, 'max_depth': 32}, mean: 0.79702, std: 0.03928, params: {'max_features': 'auto', 'max_depth': 33}, mean: 0.79563, std: 0.03942, params: {'max_features': 'log2', 'max_depth': 33}, mean: 0.79656, std: 0.03961, params: {'max_features': None, 'max_depth': 33}, mean: 0.79802, std: 0.03819, params: {'max_features': 'auto', 'max_depth': 34}, mean: 0.79597, std: 0.03943, params: {'max_features': 'log2', 'max_depth': 34}, mean: 0.79676, std: 0.03774, params: {'max_features': None, 'max_depth': 34}, mean: 0.79709, std: 0.03892, params: {'max_features': 'auto', 'max_depth': 35}, mean: 0.79636, std: 0.04061, params: {'max_features': 'log2', 'max_depth': 35}, mean: 0.79702, std: 0.03868, params: {'max_features': None, 'max_depth': 35}, mean: 0.79530, std: 0.04017, params: {'max_features': 'auto', 'max_depth': 36}, mean: 0.79597, std: 0.03864, params: {'max_features': 'log2', 'max_depth': 36}, mean: 0.79821, std: 0.03919, params: {'max_features': None, 'max_depth': 36}, mean: 0.79669, std: 0.04028, params: {'max_features': 'auto', 'max_depth': 37}, mean: 0.79577, std: 0.03941, params: {'max_features': 'log2', 'max_depth': 37}, mean: 0.79524, std: 0.03930, params: {'max_features': None, 'max_depth': 37}, mean: 0.79557, std: 0.03848, params: {'max_features': 'auto', 'max_depth': 38}, mean: 0.79563, std: 0.04013, params: {'max_features': 'log2', 'max_depth': 38}, mean: 0.79649, std: 0.03944, params: {'max_features': None, 'max_depth': 38}, mean: 0.79722, std: 0.03855, params: {'max_features': 'auto', 'max_depth': 39}, mean: 0.79597, std: 0.03918, params: {'max_features': 'log2', 'max_depth': 39}, mean: 0.79729, std: 0.03947, params: {'max_features': None, 'max_depth': 39}]
+#ExtraClassifierWithCoef(bootstrap=False, compute_importances=None,
+#            criterion='gini', max_depth=26, max_features='log2',
+#            max_leaf_nodes=None, min_density=None, min_samples_leaf=1,
+#            min_samples_split=2, n_estimators=500, n_jobs=1,
+#            oob_score=False, random_state=None, verbose=0)
+#                                    importance
+#EHDtH                                 0.149364
+#EVDtH                                 0.147200
+#Elevation                             0.143431
+#Hillshade_9am                         0.057163
+#Fire_Road_1                           0.049778
+#Hydro_Road_2                          0.048146
+#Horizontal_Distance_To_Roadways       0.046958
+#Hydro_Road_1                          0.044458
+#Fire_Road_2                           0.042581
+#Hydro_Fire_1                          0.042110
+#Hillshade_Noon                        0.041257
+#Horizontal_Distance_To_Fire_Points    0.040297
+#Hydro_Fire_2                          0.038764
+#Distanse_to_Hydrology                 0.038462
+#Horizontal_Distance_To_Hydrology      0.037936
+#Vertical_Distance_To_Hydrology        0.032095
+
+
+
+#################### Bringing in test data ####################################
+test = pandas.read_csv('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/tree_test.csv')
+
+pandas.set_option('display.max_columns', None)
+df_test_full = test
+df_test_full.head()
+df_test_full.describe()
+
+### Recreating new variables
+
+df_test_full["Sin_Aspect"] = numpy.sin(df_test_full.Aspect)
+df_test_full.drop(['Id', 'Aspect'],  1, inplace = True)
+
+
+df_test_full['diff_Hillshade'] =  df_test_full.Hillshade_3pm - df_test_full.Hillshade_9am
+
+df_test_full['EVDtH'] = df_test_full.Elevation-df_test_full.Vertical_Distance_To_Hydrology
+
+df_test_full['EHDtH'] = df_test_full.Elevation-df_test_full.Horizontal_Distance_To_Hydrology*0.15
+
+df_test_full['Distanse_to_Hydrology'] = (df_test_full['Horizontal_Distance_To_Hydrology']**2 +df_test_full['Vertical_Distance_To_Hydrology']**2)**0.5
+
+df_test_full['Hydro_Fire_1'] = df_test_full['Horizontal_Distance_To_Hydrology']+ df_test_full['Horizontal_Distance_To_Fire_Points']
+
+df_test_full['Hydro_Fire_2'] = abs(df_test_full['Horizontal_Distance_To_Hydrology']-df_test_full['Horizontal_Distance_To_Fire_Points'])
+
+df_test_full['Hydro_Road_1'] = abs(df_test_full['Horizontal_Distance_To_Hydrology']+ df_test_full['Horizontal_Distance_To_Roadways'])
+
+df_test_full['Hydro_Road_2'] = abs(df_test_full['Horizontal_Distance_To_Hydrology']-df_test_full['Horizontal_Distance_To_Roadways'])
+
+df_test_full['Fire_Road_1'] = abs(df_test_full['Horizontal_Distance_To_Fire_Points']+ df_test_full['Horizontal_Distance_To_Roadways'])
+
+df_test_full['Fire_Road_2'] = abs(df_test_full['Horizontal_Distance_To_Fire_Points']-df_test_full['Horizontal_Distance_To_Roadways'])
+
+######################  Data cleaning ########################################
+
+explanatory_features_test_full = [col for col in df_test_full.columns if col not in ['Cover_Type']]
+
+explanatory_df_test_full = df_test_full[explanatory_features_test_full]
+
+explanatory_df_test_full.dropna(how = 'all', inplace = True)
+
+explanatory_colnames_test_full = explanatory_df_test_full.columns
+
+
+# Hillshade index of 0 for some
+def median(var):
+    med = numpy.median(var[var > 0])
+# Assign the median to the zero elements 
+    var[var == 0] = med
+    
+median(df_test_full.Hillshade_3pm)
+median(df_test_full.Hillshade_9am)
+median(df_test_full.Hillshade_Noon)
+
+df_test_full.Hillshade_9am.describe()
+df_test_full.Hillshade_3pm.describe()
+df_test_full.Hillshade_Noon.describe()
+
+# Dropped features with zero variation in training set
+
+explanatory_df_test_full.drop(['Soil_Type1','Soil_Type5', 'Soil_Type7', 'Soil_Type14', 'Soil_Type15', 'Soil_Type37'], 1, inplace = True)
+
+
+# Scaled using the training transformation
+explanatory_df_test_full = pandas.DataFrame(scaler.transform(explanatory_df_test_full), columns = explanatory_df_test_full.columns)
+
+# 7. Define features to those found in RFE for Cover_types 1 and 1
+best_features_12_test = explanatory_df_test_full[features_used_et_12]
+
+test_ids = test['Id']
+
+
+with open('/Users/jkraunz/Documents/Data Science/HW/Capstone_Project/fourth_prediction.csv', "wb") as outfile:
+    outfile.write("Id,Cover_Type\n")
+    for e, val in enumerate(list(best_et_grid_full
+.predict(best_features_12_test))):
+        outfile.write("%s,%s\n"%(test_ids[e],val))
+
+        
+
