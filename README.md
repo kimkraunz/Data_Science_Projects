@@ -8,4 +8,4 @@ You can learn more about the contest at:
 https://www.kaggle.com/c/forest-cover-type-prediction
 
 #Kickstarter
-The Kickstarter file contains the script and presentation used for Capstone Project for the Data Science course that I took at General Assembly.  I predicted whether a Kickstarter project would be funded or not and how much would be pledged in the future.
+The Kickstarter file contains the script and presentation I developed for my Capstone Project for the Data Science course that I took at General Assembly.  I predicted whether a Kickstarter project would be funded or not and how much would be pledged in the future.  It also contains some interesting graphs on the data that I had.  Check it out!  It was a great project to work on.
