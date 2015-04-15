@@ -611,3 +611,584 @@ from sklearn import preprocessing
 scaler = preprocessing.StandardScaler()
 scaler.fit(explanatory_df)
 explanatory_df = pandas.DataFrame(scaler.transform(explanatory_df), columns = explanatory_df.columns)
+from sklearn import ensemble
+from sklearn.cross_validation import cross_val_score
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn import tree
+from sklearn.cross_validation import train_test_split
+from sklearn import metrics
+from sklearn.grid_search import GridSearchCV
+
+
+rf = ensemble.RandomForestClassifier(n_estimators = 500)
+et = ensemble.ExtraTreesClassifier(n_estimators = 500)
+
+
+roc_scores_rf = cross_val_score(rf, explanatory_df, response_series, cv=10, scoring = 'roc_auc', n_jobs = -1)
+
+roc_scores_tree = cross_val_score(tree.DecisionTreeClassifier(), explanatory_df, response_series, cv=10, scoring = 'roc_auc', n_jobs = -1)
+
+roc_scores_et = cross_val_score(et, explanatory_df, response_series, cv=10, scoring = 'roc_auc', n_jobs = -1)
+
+print roc_scores_rf.mean()
+print roc_scores_tree.mean()
+print roc_scores_et.mean()
+
+xTrain, xTest, yTrain, yTest = train_test_split(explanatory_df, response_series, test_size = 0.3)
+
+# Create pandas dataframe
+tree_probabilities = pandas.DataFrame(tree.DecisionTreeClassifier().fit(xTrain, yTrain).predict_proba(xTest))
+rf_probabilities = pandas.DataFrame(rf.fit(xTrain, yTrain).predict_proba(xTest))
+et_probabilities = pandas.DataFrame(et.fit(xTrain, yTrain).predict_proba(xTest))
+
+# plot with Y and 2nd column of pandas dataframe
+tree_fpr, tree_tpr, thresholds = metrics.roc_curve(yTest, tree_probabilities[1])
+rf_fpr, rf_tpr, thesholds = metrics.roc_curve(yTest, rf_probabilities[1])
+et_fpr, et_tpr, thesholds = metrics.roc_curve(yTest, et_probabilities[1])
+
+plt.figure()
+plt.plot(tree_fpr, tree_tpr, color = 'g')
+plt.plot(rf_fpr, rf_tpr, color = 'b')
+plt.plot(et_fpr, et_tpr, color = 'r')
+plt.xlabel('False Positive Rate(1 - Specificity)')
+plt.ylabel('True Positive Rate (Sensitivity)')
+
+
+''' RFE and Grid Search once I find the best model'''
+
+''' fix param grid for both params'''
+
+
+#depth_range = range(3, 6)
+#trees_range = range(10, 550, 10)
+#param_grid = dict(estimator__max_depth=depth_range)
+#
+#class TreeClassifierWithCoef(tree.DecisionTreeClassifier):
+#   def fit(self, *args, **kwargs):
+#       super(tree.DecisionTreeClassifier, self).fit(*args, **kwargs)
+#       self.coef_ = self.feature_importances_
+#
+## these are the default settings for the tree based classifier
+#decision_tree = TreeClassifierWithCoef(criterion = 'gini', splitter = 'best', max_features = None, max_depth = None, min_samples_split = 2, min_samples_leaf = 2, max_leaf_nodes = None, random_state = 1)
+#
+#rfe_cv = RFECV(estimator=decision_tree, step=1, cv=10,
+#              scoring='roc_auc', verbose = 1)
+#
+#rfe_grid_search = GridSearchCV(rfe_cv, param_grid, cv = 10, scoring = 'roc_auc')
+#rfe_grid_search.fit(explanatory_df, response_series)
+#
+#print rfe_grid_search.grid_scores_
+#
+#rfe_grid_search.best_params_
+#
+#
+#grid_mean_scores = [score[1] for score in rfe_grid_search.grid_scores_]
+#
+## Plot max_depth vs. ROC score
+#plt.figure()
+#plt.plot(depth_range, grid_mean_scores)
+#plt.hold(True)
+#plt.plot(rfe_grid_search.best_params_['estimator__max_depth'], rfe_grid_search.best_score_, 'ro', markersize=12, markeredgewidth=1.5,
+#         markerfacecolor='None', markeredgecolor='r')
+#plt.grid(True)
+#
+## pull out the winning estimator.
+#best_decision_tree_rfe_grid = rfe_grid_search.best_estimator_
+#
+#features_used_rfecv_grid = explanatory_df.columns[best_decision_tree_rfe_grid.get_support()]
+#
+#print features_used_rfecv_grid
+#
+#best_features = explanatory_df[features_used_rfecv_grid]
+
+'''importances for best model'''
+
+#importances = pandas.DataFrame(gbm_grid.best_estimator_.feature_importances_, index = explanatory_df.columns, columns =['importance'])
+#
+#importances.sort(columns = ['importance'], ascending = False, inplace = True)
+#print importances
+
+explanatory_df_no_backs = explanatory_df.drop('backers_count', 1)
+
+accuracy_rf_nb = cross_val_score(rf, explanatory_df_no_backs, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+
+accuracy_tree_nb = cross_val_score(tree.DecisionTreeClassifier(), explanatory_df_no_backs, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+
+accuracy_et_nb = cross_val_score(et, explanatory_df_no_backs, response_series, cv=10, scoring = 'accuracy', n_jobs = -1)
+
+accuracy_rf_nb.mean()
+accuracy_tree_nb.mean()
+accuracy_et_nb.mean()
+
+#w/o sentiment
+
+#0.642830242708
+#0.57791814837
+#0.602440778334
+
+# with sentiment
+#0.60020032163560011
+#0.57065206149835612
+#0.59243482561913152
+
+xTrain, xTest, yTrain, yTest = train_test_split(explanatory_df_no_backs, response_series, test_size = 0.3)
+
+# Create pandas dataframe
+tree_probabilities_nb = pandas.DataFrame(tree.DecisionTreeClassifier().fit(xTrain, yTrain).predict_proba(xTest))
+rf_probabilities_nb = pandas.DataFrame(rf.fit(xTrain, yTrain).predict_proba(xTest))
+et_probabilities_nb = pandas.DataFrame(et.fit(xTrain, yTrain).predict_proba(xTest))
+
+# plot with Y and 2nd column of pandas dataframe
+tree_fpr_nb, tree_tpr_nb, thresholds = metrics.roc_curve(yTest, tree_probabilities_nb[1])
+rf_fpr_nb, rf_tpr_nb, thesholds = metrics.roc_curve(yTest, rf_probabilities_nb[1])
+et_fpr_nb, et_tpr_nb, thesholds = metrics.roc_curve(yTest, et_probabilities_nb[1])
+
+plt.figure()
+plt.plot(tree_fpr_nb, tree_tpr_nb, color = 'g', label = 'decision tree')
+plt.plot(rf_fpr_nb, rf_tpr_nb, color = 'b', label = 'random forest')
+plt.plot(et_fpr_nb, et_tpr_nb, color = 'r', label = 'extra trees')
+plt.xlabel('False Positive Rate(1 - Specificity)')
+plt.ylabel('True Positive Rate (Sensitivity)')
+plt.title('ROC scores (without backer counts)')
+plt.legend(loc = 0)
+
+
+from sklearn.feature_selection import RFECV
+from sklearn import tree
+
+# create new class with a .coef_ attribute.
+class TreeClassifierWithCoef(tree.DecisionTreeClassifier):
+    def fit(self, *args, **kwargs):
+        super(tree.DecisionTreeClassifier, self).fit(*args, **kwargs)
+        self.coef_ = self.feature_importances_
+
+# create your tree based estimator
+decision_tree = TreeClassifierWithCoef(criterion = 'gini', splitter = 'best', max_features = None, max_depth = None, min_samples_split = 2, min_samples_leaf = 2, max_leaf_nodes = None, random_state = 1)
+
+## set up the estimator. Score by AUC
+rfe_cv = RFECV(estimator=decision_tree, step=1, cv=10,
+              scoring='roc_auc', verbose = 1)
+rfe_cv.fit(explanatory_df_no_backs, response_series)
+
+print "Optimal number of features :{0} of {1} considered".format(rfe_cv.n_features_,len(explanatory_df_no_backs.columns))
+
+# printing out scores as we increase the number of features -- the farter
+# down the list, the higher the number of features considered.
+print rfe_cv.grid_scores_
+
+## let's plot out the results
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (ROC_AUC)")
+plt.plot(range(1, len(rfe_cv.grid_scores_) + 1), rfe_cv.grid_scores_)
+plt.show()
+# notice you could have just as well have included the 10 most important 
+# features and received similar accuracy.
+
+# you can pull out the features used this way:
+features_used = explanatory_df_no_backs.columns[rfe_cv.get_support()]
+print features_used
+# Index([u'goal_USD', u'polarity', u'subjectivity', u'main_category_animals', u'main_category_art', u'main_category_comics', u'main_category_crafts', u'main_category_dance', u'main_category_design', u'main_category_fashion', u'main_category_film_and_video', u'main_category_food', u'main_category_games', u'main_category_journalism', u'main_category_music', u'main_category_photography', u'main_category_publishing', u'main_category_technology', u'main_category_theater', u'sub_category_Other', u'sub_category_apparel', u'sub_category_childrens_books', u'sub_category_documentary', u'sub_category_fiction', u'sub_category_hardware', u'sub_category_indie_rock', u'sub_category_narrative_film', u'sub_category_nonfiction', u'sub_category_pop', u'sub_category_product_design', u'sub_category_rock', u'sub_category_shorts', u'sub_category_tabletop_games', u'sub_category_unknown', u'sub_category_video_games', u'sub_category_webseries', u'currency_AUD', u'currency_CAD', u'currency_GBP', u'currency_Other', u'currency_USD', u'currency_unknown'], dtype='object')
+#you can extract the final selected model object this way:
+best_model = explanatory_df_no_backs[features_used]
+importances = pandas.DataFrame(rf.feature_importances_, index = best_model.columns, columns =['importance'])
+
+importances.sort(columns = ['importance'], ascending = False, inplace = True)
+print importances
+
+
+
+#from sklearn.feature_selection import RFECV
+#
+#class ForestClassifierWithCoef(RandomForestClassifier):
+#   def fit(self, *args, **kwargs):
+#       super(RandomForestClassifier, self).fit(*args, **kwargs)
+#       self.coef_ = self.feature_importances_
+#
+## these are the default settings for the tree based classifier
+#random_forest = ForestClassifierWithCoef(n_estimators = 100)
+#
+#rfe_cv = RFECV(estimator=DecisionTree, step=1, cv=10,
+#              scoring='accuracy', verbose = 1)
+#rfe_cv.fit(explanatory_df_no_backs, response_series)
+#
+#"Optimal number of features :{0} of {1} considered".format(rfe_cv.n_features_, len(explanatory_df_no_backs.columns))
+#
+#
+#rfe_cv.n_features_
+#
+#rfe_cv.grid_scores_
+#
+#plt.figure()
+#plt.xlabel("Number of features selected")
+#plt.ylabel("Cross validation score (ROC_AUC)")
+#plt.plot(range(1, len(rfe_cv.grid_scores_) + 1), rfe_cv.grid_scores_)
+#plt.show()
+#
+#features_used = explanatory_df_no_backs.columns[rfe_cv.get_support()]
+#features_used
+
+features_used = ['goal_USD', 'polarity', 'subjectivity', 'main_category_animals', 'main_category_art', 'main_category_comics', 'main_category_crafts', 'main_category_dance', 'main_category_design', 'main_category_fashion', 'main_category_film_and_video', 'main_category_food', 'main_category_games', 'main_category_journalism', 'main_category_music', 'main_category_photography', 'main_category_publishing', 'main_category_technology', 'main_category_theater', 'sub_category_Other', 'sub_category_apparel', 'sub_category_childrens_books', 'sub_category_documentary', 'sub_category_fiction', 'sub_category_hardware', 'sub_category_indie_rock', 'sub_category_narrative_film', 'sub_category_nonfiction', 'sub_category_pop', 'sub_category_product_design', 'sub_category_rock', 'sub_category_shorts', 'sub_category_tabletop_games', 'sub_category_unknown', 'sub_category_video_games', 'sub_category_webseries', 'currency_AUD', 'currency_CAD', 'currency_GBP', 'currency_Other', 'currency_USD', 'currency_unknown']
+
+best_model = explanatory_df_no_backs[features_used]
+
+rf = RandomForestClassifier(n_estimators = 100)
+
+rf.fit(best_model, response_series)
+rf.score(best_model, response_series)
+# 0.93025459339210681
+################################################################################
+#######################  Import test data  #####################################
+################################################################################
+
+df_2015 = pandas.read_csv('/Users/frontlines/Documents/kickstarter_test.csv')
+
+pandas.set_option('display.max_columns', None)
+df_2015.head()
+df_2015.drop('currency_symbol', axis = 1, inplace = True)
+
+# turn upper cases into lower cases in category and sub_category
+df_2015.main_category = df_2015.main_category.str.lower()
+df_2015.sub_category = df_2015.sub_category.str.lower()
+
+
+
+art = ('conceptual_art', 'digital_art', 'illustration', 'installations', 'mixed_media', 'painting', 'performance_art', 'public_art', 'sculpture', 'textiles', 'video_art', 'ceramics')
+
+comics = ('anthologies', 'comic_books', 'events', 'graphic_novels', 'webcomics')
+
+crafts = ('candles', 'crochet', 'diy', 'embroidery', 'glass', 'knitting', 'letterpress', 'pottery', 'printing', 'quilts', 'stationery', 'taxidermy', 'weaving', 'woodworking')
+
+dance = ('performances', 'residencies', 'spaces', 'workshops')
+
+design = ('architecture', 'civic_design', 'graphic_design', 'interactive_design', 'product_design', 'typography')
+
+fashion = ('accessories', 'apparel', 'childrenswear', 'couture', 'footwear', 'jewelry', 'pet_fashion', 'ready-to-wear')
+
+film_and_video = ('action', 'animation', 'comedy', 'documentary', 'drama', 'experimental', 'family', 'fantasy', 'festivals', 'horror', 'movie_theaters', 'music_videos', 'narrative_film', 'romance', 'science_fiction', 'shorts', 'television', 'thrillers', 'webseries')
+
+food = ('bacon', 'community_gardens', 'cookbooks', 'drinks', 'events', 'farmers_markets', 'farms', 'food_trucks', 'restaurants', 'small_batch', 'spaces', 'vegan')
+
+games = ('gaming_hardware', 'live_games', 'mobile_games', 'playing_cards', 'puzzles', 'tabletop_games', 'video_games')
+
+journalism = ('audio', 'photo', 'prints', 'video', 'web')
+
+music = ('blues', 'chiptune', 'classical_music', 'country_&_folk', 'electronic_music', 'faith', 'hip-hop', 'indie_rock', 'jazz', 'kids', 'latin', 'metal', 'pop', 'punk', 'r&b', 'rock', 'world_music')
+
+animals = ('fine_art', 'nature', 'people', 'photobooks', 'places')
+
+technology = ('3d_printing', 'apps','camera_equipment', 'diy_electronics', 'fabrication_tools', 'flight', 'gadgets', 'hardware', 'makerspaces', 'robots','software','sound', 'space_exploration', 'wearables', 'web', 'open_software')
+
+theater = ('experimental', 'festivals', 'immersive', 'musical', 'plays', 'spaces')
+
+publishing = ('academic', 'anthologies', 'art_books','calendars','childrens_books','fiction', 'literary_journals', 'nonfiction', 'periodicals', 'poetry', 'radio_and_podcasts', 'translations', 'young_adult', 'zines')
+
+df_2015.sub_category = df_2015.sub_category.astype('str')
+df_2015.main_category = df_2015.main_category.astype('str')
+df_2015.main_category = df_2015.main_category.replace(' ', '_')
+  
+     
+
+df_2015.main_category[df_2015.main_category == "children's_book"] = 'childrens_books'
+df_2015.main_category[df_2015.main_category == "children's_books"] = 'childrens_books'
+df_2015.main_category[df_2015.main_category == 'short_film'] = 'shorts'
+df_2015.main_category[df_2015.main_category == 'art_book'] = 'art_books'
+df_2015.main_category[df_2015.main_category == 'periodical'] = 'periodicals'
+df_2015.main_category[df_2015.main_category == 'radio_&_podcast'] = 'radio_and_podcasts'
+df_2015.main_category[df_2015.main_category == 'radio_&_podcasts'] = 'radio_and_podcasts'
+df_2015.main_category[df_2015.main_category == "farmer's_markets"] = 'farmers_markets'
+df_2015.main_category[df_2015.main_category == 'print'] = 'prints'
+df_2015.main_category[df_2015.main_category == 'film_&_video'] = 'film_and_video'
+
+
+df_2015.main_category[df_2015.main_category == 'product design'] = 'product_design'
+df_2015.main_category[df_2015.main_category == 'tabletop games'] = 'tabletop_games'
+df_2015.main_category[df_2015.main_category == 'video games'] = 'video_games'
+df_2015.main_category[df_2015.main_category == 'film & video'] = 'film_and_video'
+df_2015.main_category[df_2015.main_category == 'children\'s books'] = 'childrens_books'
+df_2015.main_category[df_2015.main_category == 'playing cards'] = 'playing_cards'
+df_2015.main_category[df_2015.main_category == 'country & folk'] = 'country_&_folk'
+df_2015.main_category[df_2015.main_category == 'comic books'] = 'comic_books'
+df_2015.main_category[df_2015.main_category == 'food trucks'] = 'food_trucks'
+df_2015.main_category[df_2015.main_category == 'small batch'] = 'small_batch'
+df_2015.main_category[df_2015.main_category == 'indie rock'] = 'indie_rock'
+df_2015.main_category[df_2015.main_category == 'public art'] = 'public_art'
+df_2015.main_category[df_2015.main_category == 'mobile games'] = 'mobile_games'
+df_2015.main_category[df_2015.main_category == 'mixed media'] = 'mixed_media'
+df_2015.main_category[df_2015.main_category == 'classical music'] = 'classical_music'
+df_2015.main_category[df_2015.main_category == 'graphic novels']= 'graphic_novels'
+df_2015.main_category[df_2015.main_category == 'narrative film'] = 'narrative_film'
+df_2015.main_category[df_2015.main_category == 'electronic music'] = 'electronic_music'
+df_2015.main_category[df_2015.main_category == 'art books'] = 'art_books'
+df_2015.main_category[df_2015.main_category == 'world music'] = 'world_music'
+df_2015.main_category[df_2015.main_category == 'graphic design'] = 'graphic_design'
+df_2015.main_category[df_2015.main_category == 'diy electronics'] = 'diy_electronics'
+df_2015.main_category[df_2015.main_category == 'live games'] = 'live_games'
+df_2015.main_category[df_2015.main_category == 'performance art'] = 'performance_art'
+df_2015.main_category[df_2015.main_category == 'science fiction'] = 'science_fiction'
+df_2015.main_category[df_2015.main_category == '3d printing'] = '3d_printing'
+df_2015.main_category[df_2015.main_category == 'fine art'] = 'fine_art'
+df_2015.main_category[df_2015.main_category == 'young adult'] = 'young_adult'
+df_2015.main_category[df_2015.main_category == 'digital art'] = 'digital_art'
+df_2015.main_category[df_2015.main_category == 'music videos'] = 'music_videos'  
+df_2015.main_category[df_2015.main_category == 'radio & podcasts'] = 'radio_and_podcasts'
+df_2015.main_category[df_2015.main_category == 'community gardens'] = 'community_gardens'
+df_2015.main_category[df_2015.main_category == 'farmer\'s markets'] = 'farmers_markets'
+df_2015.main_category[df_2015.main_category == 'conceptual art'] = 'conceptual_art' 
+df_2015.main_category[df_2015.main_category == 'interactive design'] = 'interactive_design'
+df_2015.main_category[df_2015.main_category == 'space exploration'] = 'space_exploration'
+df_2015.main_category[df_2015.main_category == 'children\'s book'] = 'childrens_books'
+df_2015.main_category[df_2015.main_category == 'camera equipment'] = 'camera_equipment'  
+df_2015.main_category[df_2015.main_category == 'civic design'] = 'civic_design'
+df_2015.main_category[df_2015.main_category == 'gaming hardware'] = 'gaming_hardware'    
+df_2015.main_category[df_2015.main_category == 'literary journals'] = 'literary_journals'    
+df_2015.main_category[df_2015.main_category == 'fabrication tools'] = 'fabrication_tools'
+df_2015.main_category[df_2015.main_category == 'movie theaters'] = 'movie_theaters'
+df_2015.main_category[df_2015.main_category == 'pet fashion'] = 'pet_fashion'  
+df_2015.main_category[df_2015.main_category == 'video art'] = 'video_art'        
+df_2015.main_category[df_2015.main_category == 'art book'] = 'art_books'         
+df_2015.main_category[df_2015.main_category == 'radio & podcast'] = 'radio_and_podcasts'
+                 
+
+
+
+for name in technology:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'technology'
+
+for name in theater:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'theater'
+
+for name in animals:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'animals'
+
+for name in music:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'music'
+    
+for name in journalism:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'journalism'
+ 
+for name in games:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'games' 
+    
+for name in food:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'food' 
+
+for name in film_and_video:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'film_and_video'
+    
+for name in fashion:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'fashion' 
+    
+for name in design:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'design'
+    
+for name in dance:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'dance' 
+    
+for name in crafts:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'crafts' 
+    
+for name in comics:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'comics' 
+    
+for name in art:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'art' 
+    
+for name in publishing:
+    df_2015.sub_category[df_2015.main_category == name] = name
+    df_2015.main_category[df_2015.sub_category == name] = 'publishing' 
+     
+df_2015.main_category.value_counts(normalize = True, dropna = False )
+
+
+main_cats = ('film_and_video', 'music','publishing', 'games', 'design', 'art','food','technology','fashion','comics', 'theater', 'crafts', 'journalism','photography','animals','dance')
+
+df_2015.sub_category[df_2015.main_category == 'unknown'] = 'unknown'
+df_2015.sub_category[df_2015.sub_category == 'film_&_video'] = 'film_and_video'
+
+for name in main_cats:
+    df_2015.sub_category[df_2015.sub_category == name] = 'unknown'
+    
+df_2015.sub_category[df_2015.sub_category == 'nan'] = 'unknown'
+    
+df_2015.sub_category.value_counts(normalize = True, dropna = False)
+
+df_2015['funded']= 2
+df_2015.funded[df_2015.state == 'successful'] = 1
+df_2015.funded[df_2015.state == 'failed'] = 0
+df_2015 = df_2015[df_2015.funded != 2]
+
+df_2015.deadline = to_datetime(df_2015.deadline)
+df_2015['year'] = DatetimeIndex(df_2015['deadline']).year
+df_2015['month'] = DatetimeIndex(df_2015['deadline']).month
+
+df_2015.describe()
+df_2015.head()
+
+# Convert currency to USD
+
+df_2015.currency.value_counts(normalize = True, dropna = False)
+
+
+# Convert goals and pledged to USD
+df_2015['goal_USD'] = df_2015.goal
+
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "GBP"] = df_2015.goal * 1.48
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "CAD"] = df_2015.goal * .79
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "AUD"] = df_2015.goal * .76
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "EUR"] = df_2015.goal * 1.07
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "NZD"] = df_2015.goal * .75
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "DKK"] = df_2015.goal * .14
+df_2015.goal_USD = df_2015.goal_USD[df_2015.currency == "NOK"] = df_2015.goal * .12
+
+df_2015['pledged_USD'] = df_2015.pledged
+
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "GBP"] = df_2015.pledged * 1.48
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "CAD"] = df_2015.pledged * .79
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "AUD"] = df_2015.pledged * .76
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "EUR"] = df_2015.pledged * 1.07
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "NZD"] = df_2015.pledged * .75
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "DKK"] = df_2015.pledged * .14
+df_2015.pledged_USD = df_2015.pledged_USD[df_2015.currency == "NOK"] = df_2015.pledged * .12
+
+df_2015.pledged_USD = df_2015.pledged_USD.astype('int')
+df_2015.goal_USD = df_2015.goal_USD.astype('int')
+
+# Create quarters
+
+frame_sum = df_2015.set_index(df_2015.deadline)
+frame_sum = frame_sum['12/31/2014':]
+frame_sum = frame_sum.resample('Q', how = 'sum')
+frame_sum = frame_sum[['goal_USD', 'pledged_USD']]
+frame_sum['perc_funded_q'] = frame_sum.pledged_USD / frame_sum.goal_USD
+frame_sum.reset_index(inplace = True)
+df_2015['pct_funded_prev_q'] = 0
+
+
+df_2015.pct_funded_prev_q[(df_2015.deadline >= '2015-1-1') & (df_2015.deadline < '2015-4-1')] = 0.157881
+
+df_2015.pct_funded_prev_q[(df_2015.deadline >= '2015-4-1') & (df_2015.deadline < '2015-7-1')] = 0.225512
+
+# Text analysis
+
+df_2015.blurb = df_2015.blurb.astype('str')
+
+
+def polarity(text):
+    return TextBlob(unicode(text, errors='ignore')).sentiment.polarity
+
+def subjectivity(text):
+    return TextBlob(unicode(text, errors='ignore')).sentiment.subjectivity
+
+
+df_2015['polarity'] = map(polarity, df_2015.blurb)
+df_2015['subjectivity'] = map(subjectivity, df_2015.blurb) 
+
+
+# Set up explanatory and response features
+
+expl_df_2015_no_backs = df_2015
+
+explanatory_features_no_backs = [col for col in expl_df_2015_no_backs.columns if col in ['main_category', 'sub_category', 'currency', 'goal_USD', 'pct_funded_prev_q', 'subjectivity', 'polarity', 'backers_count']]
+
+explanatory_df_2015_no_backs = expl_df_2015_no_backs[explanatory_features_no_backs]
+
+explanatory_df_2015_no_backs.dropna(how = 'all', inplace = True)
+
+explanatory_col_names_no_backs = explanatory_df_2015_no_backs.columns
+
+response_series_2015_no_backs = expl_df_2015_no_backs.funded
+
+response_series_2015_no_backs.dropna(how = 'all', inplace = True)
+
+response_series_2015_no_backs.index[~response_series_2015_no_backs.index.isin(explanatory_df_2015_no_backs.index)]
+
+~explanatory_df_no_backs.columns.isin(explanatory_df_2015_no_backs.columns)
+# 1. Split data into categorical and numeric data
+
+string_features_2015_no_backs = explanatory_df_2015_no_backs.ix[: , explanatory_df_2015_no_backs.dtypes == 'object']
+numeric_features_2015_no_backs = explanatory_df_2015_no_backs.ix[: , explanatory_df_2015_no_backs.dtypes != 'object']
+
+# 3. Fill categorical NaNs with ‘unknown’
+
+string_features_2015_no_backs = string_features_2015_no_backs.fillna('unknown')
+
+# 4. Matches categorical data to pre-2015 data
+
+# If there is a value that is not in the training data set, replaces value with "Other"
+
+for col in string_features_2015_no_backs:
+    string_features_2015_no_backs[col].ix[~string_features_2015_no_backs[col].isin(string_features_cat[col])] = "Other"
+
+
+# 5. Encode each categorical variable into a sequence of binary variables.
+
+string_features_2015_no_backs = get_binary_values(string_features_2015_no_backs)
+
+for col in string_features_2015_no_backs:
+	if col not in string_features_2015_no_backs:
+		string_features_2015_no_backs[col] = 0
+ 
+
+# 6. Merge your encoded categorical data with your numeric data
+
+explanatory_df_2015_no_backs = pandas.concat([numeric_features_2015_no_backs, string_features_2015_no_backs], axis = 1)
+explanatory_df_2015_no_backs.head()
+
+
+
+# 7. Remove features with no variation
+   
+# No features had zero variance
+
+# 8. Remove perfectly correlated features
+   
+# No features had perfect correlation
+
+
+# 9. Scale your data with zero mean and unit variance
+
+explanatory_df_2015_no_backs = pandas.DataFrame(scaler.transform(explanatory_df_2015_no_backs), columns = explanatory_df_2015_no_backs.columns, index = explanatory_df_2015_no_backs.index)
+
+##########################  Predicting on new data ##############################
+
+
+best_model_2015 = explanatory_df_2015_no_backs[features_used]
+
+kickstarter_pred_2015_no_backs = rf.predict(best_model_2015)
+
+from __future__ import division
+
+number_correct = len(response_series_2015_no_backs[response_series_2015_no_backs == kickstarter_pred_2015_no_backs])
+total = len(response_series_2015_no_backs)
+accuracy = number_correct / total
+
+accuracy
+#0.63422230874051
+
+cm = pandas.crosstab(response_series_2015_no_backs, kickstarter_pred_2015_no_backs, rownames=['True Label'], colnames=['Predicted Label'], margins=True)
+
+print cm
+'''
+Predicted Label     0     1    All
+True Label                        
+0                6981  3258  10239
+1                2379  2793   5172
+All              9360  6051  15411
+'''
+
+
