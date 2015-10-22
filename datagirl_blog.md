@@ -9,6 +9,7 @@ I plan to use a blog to document my data science projects and learning that I'm 
 2. Refining data science tools
   1. github tutorial (https://www.codeschool.com/courses/git-real)
   2. SQL
+  3. Regex
 3. Data science methods
   1. Evaluation metrics (https://www.kaggle.com/wiki/Metrics)
   2. Bayesian predictions using fantasy football weekly projections
