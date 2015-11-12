@@ -30,7 +30,7 @@ Categories.png
 (polarity.png)
 (subjectivity.png)
 
-(technology_prediction.png)
+![Technology](technology_prediction.png)
 (games2_prediction.png)
 (Art_prediction.png)
 (design_prediction.png)
