@@ -7,13 +7,9 @@ Created on Sun Apr  5 18:05:43 2015
 
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
-
-
 import pandas
 from pandas import DatetimeIndex
-import numpy as np
 from pandas.tseries.tools import to_datetime
-import numpy
 import matplotlib.pylab as plt
 from __future__ import division
 from sklearn.cross_validation import cross_val_score
