@@ -26,6 +26,9 @@ I also compared the number of backers for projects that were funded versus those
 Each project has a category.  I looked at the distribution of categories over time (by month).  The figure (messy!) shows that the categories with the highest pledged dollars are technology, gaming, design, and film and videos.
 
 ![Categories](Categories.png)
+
+Each project also has a description to try to convice backers to support the project.  I used TextBlob, a text processing library in python to look at the distribution of polarity and subjectivity of the project description.
+
 ![Polarity and subjectivity](polarity and subjectivity.png)
 
 ##Predicting whether or not a Kickstarter project would be funded
