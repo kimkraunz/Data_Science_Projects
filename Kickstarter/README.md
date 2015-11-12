@@ -11,11 +11,20 @@ I first looked at how project funding has changed over time.  I saw that there w
 
 ![Average project by year](ave_project_year_graph.png)
 
-I looked at the relationship between the log sum of the amounts in both the goals and pledges over time in comparison to the number of projects.  This again highlights the change in both proposed projects and funding in early 2013.  
+I looked at the relationship between the log sum of the amounts in both the goals and pledges over time in comparison to the number of projects.  This again highlights the change in both proposed projects and funding in early 2013. 
+
 ![Log sum of projects](Log sum of projects.png)
 
+I examined the frequency of the number of backers for each project.  As expected, most projects have a few number of backers while there are few projects that have a high number of backers.
+
 ![Backers](backers.png)
+
+I also compared the number of backers for projects that were funded versus those that were not funded.  Not suprisingly, the projects that were funded had more backers.
+
 ![Backers funding](backers_funding.png)
+
+Each project has a category.  I looked at the distribution of categories over time (by month).  The figure (messy!) shows that the categories with the highest pledged dollars are technology, gaming, design, and film and videos.
+
 ![Categories](Categories.png)
 ![Polarity and subjectivity](polarity and subjectivity.png)
 
