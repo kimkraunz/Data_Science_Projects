@@ -30,13 +30,22 @@ Categories.png
 (polarity.png)
 (subjectivity.png)
 
+###Technology
 ![Technology](technology_prediction.png)
+###Gaming
 ![Gaming](games2_prediction.png)
+###Art
 ![Art](Art_prediction.png)
+###Design
 ![Design](design_prediction.png)
+###Fashion
 ![Fashion](fashion_prediction.png)
+###Filma and Videos
 ![Film and Videos](film_and_videos_prediction.png)
+###Crafts
 ![Crafts](Crafts_prediction.png)
+###Dance
 ![Dance](Dance_prediction.png)
+###Food
 ![Food](Food_prediction.png)
-![Gaming](Games_prediction.png)
+
