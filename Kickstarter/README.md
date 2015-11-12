@@ -7,7 +7,7 @@ The presentation of the results is [here](Kickstarter%20presentation.pdf).
 The python code used for the analysis is [here](kickstarter.py) and [here](need.py)
 
 ##Exploring the data
-I first looked at how project funding has changed over time.  I saw that there was a dramatic increase in funding around 2012.  I looked at both the proportion of projects funded and proportion of pledged dollars as well.  We see that starting in 2012 that that proportion of projects funded peaks and that the proportion of pledged dollars is over 100%.  In early 2013, the amount of projects increases while we see a decrease in the amount of funding.
+I first looked at how project funding has changed over time.  I saw that there was a dramatic increase in funding around 2012.  I looked at both the proportion of projects funded and proportion of pledged dollars as well.  We see that starting in 2012 that that proportion of projects funded peaks and that the proportion of pledged dollars is over 100%.  In early 2013, the amount of projects increases while we see a decrease in the amount of funding in both the proportion of projects funded and proportion of dollars pledged.  Meanwhile, there is a dramatic increase in the amount of projects
 
 ![Average project by year](ave_project_year_graph.png)
 
