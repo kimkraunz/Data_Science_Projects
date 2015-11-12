@@ -31,7 +31,7 @@ Categories.png
 (subjectivity.png)
 
 ![Technology](technology_prediction.png)
-(games2_prediction.png)
+[Gaming](games2_prediction.png)
 (Art_prediction.png)
 (design_prediction.png)
 (fashion_prediction.png)
