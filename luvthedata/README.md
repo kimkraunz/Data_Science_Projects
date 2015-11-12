@@ -13,12 +13,14 @@ One of the reasons that I am attracted to the field of data science is that ther
 * I am committed to consistent use of Git and Github both as a version control for myself and an opportunity to share my work.
 * SQL - I will continue to practice using SQL (and python) with [this Coursera course](https://www.coursera.org/learn/python-databases)
 * Regex - I will continue to practice regex
+
 ##Hadoop
-  * Amazon Web Services (Cloud Academy)
-  * Hadoop (https://www.coursera.org/learn/hadoop)
+* Amazon Web Services (Cloud Academy)
+* Hadoop (https://www.coursera.org/learn/hadoop)
+
 ##Data science methods
-  * Evaluation metrics (https://www.kaggle.com/wiki/Metrics)
-  * Bayesian predictions using fantasy football weekly projections
+* Evaluation metrics (https://www.kaggle.com/wiki/Metrics)
+* Bayesian predictions using fantasy football weekly projections
 
 I love that Kaggle is now posting datasets for exploration.  As I move through this process I will be using one or two of their available datasets.
 
