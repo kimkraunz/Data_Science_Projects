@@ -6,31 +6,22 @@ I created this Capstone project for the General Assembly course that I took in t
 The presentation of the results is [here](Kickstarter%20presentation.pdf).
 
 ##Exploring the data
+![Pledges_main_cat](Pledges_main_cat.png)
+![Categories](Categories.png)
+![Log sum of projects](Log sum of projects.png)
+![Average project by year](ave_project_year_graph.png)
+![Backers](backers.png)
+![Backers funding](backers_funding.png)
+![Polarity and subjectivity](polarity and subjectivity.png)
 
 ##Predicting whether or not a Kickstarter project would be funded
-
-![Pledges_main_cat](Pledges_main_cat.png)
-
-## Predicting the amount of funding by Kickstarter category
-
-
-![Categories](Categories.png)
-
-
-![Log sum of projects](Log sum of projects.png)
 
 ![RFE](RFE.png)
 ![ROC score with sentiment](ROC score with sentiment and back.png)
 ![ROC score without the number of backers](ROC sent no backs .png)
-![Average project by year](ave_project_year_graph.png)
-![Backers](backers.png)
-![Backers funding](backers_funding.png)
 
+## Predicting the amount of funding by Kickstarter category
 
-
-![Polarity and subjectivity](polarity and subjectivity.png)
-![Polarity](polarity.png)
-![Subjectivity](subjectivity.png)
 
 ###Technology
 ![Technology](technology_prediction.png)
